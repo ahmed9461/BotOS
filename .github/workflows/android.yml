@@ -33,8 +33,27 @@ jobs:
           python3 scripts/check_contrast.py
           bash -n scripts/install_android_sdk.sh
           python3 -m unittest discover -s scripts/tests -v
+      - name: Inspect dependency publication metadata
+        run: |
+          mkdir -p diagnostics
+          python3 scripts/probe_dependencies.py | tee diagnostics/dependencies.json
+        shell: bash
       - name: Install Android platform
-        run: bash scripts/install_android_sdk.sh "platforms;android-37" "build-tools;36.0.0"
+        shell: bash
+        run: |
+          mkdir -p diagnostics
+          status=0
+          bash scripts/install_android_sdk.sh "platforms;android-37" "build-tools;36.0.0" > diagnostics/android-setup.txt 2>&1 || status=$?
+          tail -n 25 diagnostics/android-setup.txt
+          if [ "$status" -ne 0 ]; then
+            root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+            manager="$root/cmdline-tools/latest/bin/sdkmanager"
+            if [ -x "$manager" ]; then
+              "$manager" --sdk_root="$root" --list --channel=0 > diagnostics/sdk-packages.txt 2>&1 || echo 'Package listing failed; see diagnostic artifact.'
+              grep -E 'platforms;android-|cmdline-tools;|build-tools;' diagnostics/sdk-packages.txt || true
+            fi
+          fi
+          exit "$status"
       - name: Generate official Gradle wrapper
         run: gradle --no-daemon wrapper --gradle-version 9.6.1 --distribution-type bin --gradle-distribution-sha256-sum 9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14
       - name: Test, lint and build preview
@@ -69,4 +88,5 @@ jobs:
             core/*/build/test-results/
             core/*/build/reports/tests/
             app/build/reports/lint-results-debug.*
+            diagnostics/
           retention-days: 14

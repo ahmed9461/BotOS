@@ -1,23 +1,22 @@
 # ملحق المهمة0002 — فحص الحزم المنشورة قبل أي تغيير إصدار
 
-2026-09-18، planned قبل تعديل workflow. يعتمد على tasks/0002-ci-recovery.md.
+2026-09-18، validating. يعتمد على tasks/0002-ci-recovery.md. خطة التحقيق كتبت أولًا في commit0ab0905a691b0e4fc897d6e5a369d15c34f53875.
 
 ## الدليل الجديد
 
-Run35287275281 عند ca1ac533729ea543e282a690336fb8de0b415c1a: عشرة اختبارات SDK وفحص التوثيق والتباين14 نجحت. إصلاح PATH نجح؛ sdkmanager موجود فعليًا في /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager ويعلن 12.0. الرخص نجحت. فشل التثبيت بعدها: Failed to find package 'platforms;android-37'. لم يبدأ Gradle. المصدر: https://github.com/ahmed9461/BotOS/actions/runs/35287275281 . لا يكفي هذا وحده للحكم بعدم وجود Android17 عالميًا.
+Run35287275281 عند ca1ac533729ea543e282a690336fb8de0b415c1a: عشرة اختبارات SDK وفحص التوثيق والتباين14 نجحت. إصلاح PATH نجح؛ sdkmanager في /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager يعلن12.0. الرخص نجحت. فشل التثبيت بعدها: Failed to find package 'platforms;android-37'. لم يبدأ Gradle. https://github.com/ahmed9461/BotOS/actions/runs/35287275281 . لا يكفي هذا وحده للحكم بعدم وجود Android17 عالميًا.
 
-## خطة التحقيق المرتبة
+## الخطة والتقدم
 
-1. أضف جمعًا تشخيصيًا لقائمة SDK stable الفعلية، وإصدارات أدواته المتاحة.
-2. اقرأ metadata الرسمية من Google Maven وMaven Central للإصدارات المثبتة في catalog؛ سجل وجودها وآخر الإصدارات المستقرة المرصودة دون تعديلها آليًا. الهدف التمييز بين توفر الحزمة ومعلومات صفحات التوثيق.
-3. احفظ التشخيص artifact حتى لو فشل التثبيت. لا تخف أخطاء build أو تنتقل إلى إصدار غير مثبت.
-4. اقرأ نتائج CI. عند الحاجة لرفع Command-Line Tools أو اختيار مجموعة مختلفة، سجل القرار والدليل والتوافق قبل تنفيذ التغيير.
-5. حدّث الذاكرة وسجل التغييرات والاختبارات. لا ادعاء APK قبل test/lint/assemble ناجحة.
+- [x] جمع قائمة SDK stable عند فشل التثبيت، مع الحفاظ على رمز فشل التثبيت نفسه.
+- [x] قراءة metadata من Google Maven وMaven Central للإصدارات المثبتة؛ لا تعديل آلي للأرقام.
+- [x] حفظ التشخيص artifact حتى مع الفشل. اختبارات Python13 نجحت محليًا (10 SDK +3 XML).
+- [ ] قراءة CI والتحقق من الحزم المنشورة.
+- [ ] إن احتاجت أدوات SDK رفعًا أو مجموعة بناء أخرى، سجل الدليل والتوافق قبل التغيير.
+- [ ] تحديث نتائج الذاكرة والتوثيق؛ لا APK قبل test/lint/assemble ناجحة.
 
-## الحدود
+مصادر الفحص عامة فقط، لا env dump أو أسرار. فشل metadata يعلن unknown لا missing. اكتمال خطوة التشخيص لا يعني أن كل الاعتمادات متاحة أو أن التطبيق بُني. اختبارات XML محلية لا اختبارات شبكة.
 
-.github/workflows/android.yml، scripts/probe_dependencies.py، docs/PROJECT_MEMORY.md، docs/CHANGELOG.md، هذا الملحق. لا تعديل التطبيق أو مكتباته في خطوة التشخيص. بيانات التشخيص إصدارات ومصادر عامة فقط؛ لا env dump أو أسرار. الاختبارات المطلوبة: Python syntax وXML fixtures محلية؛ نتائج الشبكة تتحقق في CI.
+الملفات: .github/workflows/android.yml، scripts/probe_dependencies.py، scripts/tests/test_dependency_probe.py، docs/PROJECT_MEMORY.md، docs/CHANGELOG.md، الملحق الحالي. التطبيق وإصداراته لم تتغير في التشخيص.
 
-مرجع sdkmanager: https://developer.android.com/tools/sdkmanager
-مرجع Android17/SDK37: https://developer.android.com/about/versions/17/setup-sdk
-مصادر artifacts: https://dl.google.com/dl/android/maven2/ ، https://repo.maven.apache.org/maven2/
+المراجع: https://developer.android.com/tools/sdkmanager ، https://developer.android.com/about/versions/17/setup-sdk ، https://dl.google.com/dl/android/maven2/ ، https://repo.maven.apache.org/maven2/
