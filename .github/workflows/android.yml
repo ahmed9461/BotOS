@@ -43,7 +43,7 @@ jobs:
         run: |
           mkdir -p diagnostics
           status=0
-          bash scripts/install_android_sdk.sh "platforms;android-37" "build-tools;36.0.0" > diagnostics/android-setup.txt 2>&1 || status=$?
+          bash scripts/install_android_sdk.sh "platforms;android-37.0" "build-tools;36.0.0" > diagnostics/android-setup.txt 2>&1 || status=$?
           tail -n 25 diagnostics/android-setup.txt
           if [ "$status" -ne 0 ]; then
             root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
