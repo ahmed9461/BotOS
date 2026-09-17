@@ -31,8 +31,10 @@ jobs:
         run: |
           python3 scripts/check_repo.py --base "$BASE_SHA"
           python3 scripts/check_contrast.py
+          bash -n scripts/install_android_sdk.sh
+          python3 -m unittest discover -s scripts/tests -v
       - name: Install Android platform
-        run: sdkmanager "platforms;android-37" "build-tools;36.0.0"
+        run: bash scripts/install_android_sdk.sh "platforms;android-37" "build-tools;36.0.0"
       - name: Generate official Gradle wrapper
         run: gradle --no-daemon wrapper --gradle-version 9.6.1 --distribution-type bin --gradle-distribution-sha256-sum 9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14
       - name: Test, lint and build preview
