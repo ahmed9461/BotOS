@@ -1,25 +1,23 @@
-# ملحق المهمة 0002 — تصحيح الموارد المتغيرة
+# ملحق المهمة 0002 — الموارد المتغيرة وفحص الجودة
 
-2026-09-18. الحالة: validating. الخطة كتبت في commit e820da62e58ec2640c21d167a206591a17fb5687 قبل تعديل المصدر. يتبع 0002-ci-recovery و0001-foundation.
+2026-09-18. الحالة: **completed — إصلاح خطأي lint**. الخطة فيe820da62e58ec2640c21d167a206591a17fb5687 سبقت المصدر7724a5fbc1459aac58b8d829f6e4ded1b8281f71.
 
-## الدليل
+## الدليل المقروء قبل الإصلاح
 
-Run 35287754553 عند 65fbfdf946c36f25f124c9cbbabfa9d43df74fb4: SDK وWrapper وcore:model:test وcore:telegram:test وassembleDebug نجحت. lint فشل بخطأين و9 تحذيرات، فلم يُنشر APK. artifact 10525415332 قُرئ كاملًا: JUnit 1+3 حالات ناجحة دون تخطي؛ حالة النواة الجامعة تضم 37 assertion. الخطآن LocalContextGetResourceValueCall في BotOsApp.kt سطر57 و112. تحذير compiler إضافي لشرط selected != null المكرر.
+run35287754553: SDK وWrapper وJUnit وassembleDebug نجحت؛ lint أبلغ خطأين و9 تحذيرات ومنع النشر. قُرئت SARIF/JUnit منartifact10525415332 وBotOsApp.kt وWorkspaceScreen.kt. الخطآن LocalContextGetResourceValueCall في قراءة إشعارحدث وردالمعاينة، وتحذيرcompiler لشرط selected != null المكرر.
 
-## التقدم
+## التنفيذ بالترتيب
 
-- [x] قراءة المصدر وتقرير SARIF وتقارير JUnit ومراجعة مرجع LocalResources وrememberUpdatedState.
-- [x] استخدام LocalResources.current مع rememberUpdatedState في مجمع الأحداث، وstringResource لرد المعاينة قبل callback. لا قراءة نصوص من LocalContext.
-- [x] توضيح مسار selected == null/else وإزالة الشرط المكرر دون تغيير السلوك.
-- [ ] إعادة CI وقراءة lint/JUnit/APK؛ لا نجاح مفترض قبل النتيجة.
-- [ ] تحديث نتائج TESTING والذاكرة والخطط وPR، ثم تسليم معاينة محددة المصدر إذا اجتازت جميع البوابات.
+- [x] قراءة المصدر والتقارير ومرجع LocalResources وrememberUpdatedState.
+- [x] استخدام LocalResources.current مع rememberUpdatedState داخل collector، وstringResource لرد المعاينة في التركيب قبلcallback.
+- [x] توضيح فرعي selected == null/else دون تغيير سلوك التنقل.
+- [x] إعادةCI الكامل؛ run35288442618 نجح مع lint صفر أخطاء، JUnit4 ناجحة، وAPK منشور.
+- [x] قراءة حزمة الأدلة10526005208، التحقق من APK10525521304، وتحديث الذاكرة والاختبارات والخطط.
 
-## التحذيرات المتبقية والمتابعة
+## ما لم ندّعه
 
-لم نعطل lint ولم نضف baseline أو suppress. التحذيرات التسعة في run4: 3 إشعارات تحديث أدوات البناء، localeConfig على API33+، قواعد نقل البيانات الحديثة، مجلد الأيقونة v26 المكرر، نص غير مستخدم، monochrome icon، واقتراح toUri. لا تغير مجموعة التوافق تلقائيًا. قواعد backup/نقل البيانات واختبار الأيقونة واللغة على جهاز مطلوبة قبل الإنتاج أو حفظ جلسة TDLib؛ المعاينة لا تجمع جلسة.
+لم نضف baseline أو suppress ولم نعطل lint. بقيت9 تحذيرات مصنفة فيTESTING؛ قواعد نقل البيانات/backup يجب إكمالها قبل حفظ جلسةTelegram، وتحسينات الأيقونة قبلالإنتاج. لا اختبار تغيير لغة أثناءتشغيل علىجهاز، ولاFPS أو اتصالحي حتىالآن.
 
-اختبارات إعادة إنشاء Activity وتغير اللغة غير منفذة على جهاز حتى الآن؛ إصلاح المصدر ونجاح lint لاحقًا لا يعوضان ذلك. لا FPS أو اتصال Telegram حي.
+الملفات المعدلة: BotOsApp.kt وWorkspaceScreen.kt ووثائق المهمة. التراجع بcommit عكسي دون حذف التاريخ.
 
-الملفات: BotOsApp.kt وWorkspaceScreen.kt ووثائق الذاكرة/السجل/الاختبار. التراجع بcommit عكسي دون محو التاريخ.
-
-المراجع: https://android.googlesource.com/platform/frameworks/support/+/0624f640fd3a47edfcf8a070f609d278fb5eb41b/compose/ui/ui/src/androidMain/kotlin/androidx/compose/ui/platform/AndroidCompositionLocals.android.kt ، https://developer.android.com/develop/ui/compose/side-effects ، https://github.com/ahmed9461/BotOS/actions/runs/35287754553
+المصادر: [run5](https://github.com/ahmed9461/BotOS/actions/runs/35288442618) · [مصدرLocalResources](https://android.googlesource.com/platform/frameworks/support/+/0624f640fd3a47edfcf8a070f609d278fb5eb41b/compose/ui/ui/src/androidMain/kotlin/androidx/compose/ui/platform/AndroidCompositionLocals.android.kt) · [Compose side effects](https://developer.android.com/develop/ui/compose/side-effects).
