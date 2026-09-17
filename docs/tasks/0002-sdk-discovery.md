@@ -1,22 +1,24 @@
 # ملحق المهمة0002 — فحص الحزم المنشورة قبل أي تغيير إصدار
 
-2026-09-18، validating. يعتمد على tasks/0002-ci-recovery.md. خطة التحقيق كتبت أولًا في commit0ab0905a691b0e4fc897d6e5a369d15c34f53875.
+2026-09-18، in_progress. يتبع tasks/0002-ci-recovery.md. خطة التحقيق قبل التنفيذ: commit0ab0905a691b0e4fc897d6e5a369d15c34f53875.
 
-## الدليل الجديد
+## نتائج التحقيق المثبتة
 
-Run35287275281 عند ca1ac533729ea543e282a690336fb8de0b415c1a: عشرة اختبارات SDK وفحص التوثيق والتباين14 نجحت. إصلاح PATH نجح؛ sdkmanager في /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager يعلن12.0. الرخص نجحت. فشل التثبيت بعدها: Failed to find package 'platforms;android-37'. لم يبدأ Gradle. https://github.com/ahmed9461/BotOS/actions/runs/35287275281 . لا يكفي هذا وحده للحكم بعدم وجود Android17 عالميًا.
+Run35287534204 عند81f0edd422417348567efb515c9739d755567112. artifact10524798195 (BotOS-checks-3)، قُرئ ملفا diagnostics/dependencies.json وsdk-packages.txt فعليًا.
 
-## الخطة والتقدم
+Google Maven/Maven Central يؤكدان نشر جميع الإصدارات الثمانية المثبتة: AGP9.3.1، Kotlin2.4.20، BOM2026.09.00، Activity1.13.0، Lifecycle2.11.0، Nav3 1.1.7، DataStore1.2.1، Coroutines1.11.0. لا تغيير للإصدارات.
 
-- [x] جمع قائمة SDK stable عند فشل التثبيت، مع الحفاظ على رمز فشل التثبيت نفسه.
-- [x] قراءة metadata من Google Maven وMaven Central للإصدارات المثبتة؛ لا تعديل آلي للأرقام.
-- [x] حفظ التشخيص artifact حتى مع الفشل. اختبارات Python13 نجحت محليًا (10 SDK +3 XML).
-- [ ] قراءة CI والتحقق من الحزم المنشورة.
-- [ ] إن احتاجت أدوات SDK رفعًا أو مجموعة بناء أخرى، سجل الدليل والتوافق قبل التغيير.
-- [ ] تحديث نتائج الذاكرة والتوثيق؛ لا APK قبل test/lint/assemble ناجحة.
+السبب الدقيق لتعطل SDK: الاسم المنشور هو **platforms;android-37.0** وليس platforms;android-37. تظهر37.0 revision2 مثبتة ومتاحة، وكذلك build-tools36.0.0 و37.0.0. إذن لم تكن المشكلة عدم نشر Android17 ولا حاجة لترقية cmdline-tools لحلها. الأدوات12.0 قرأت القائمة بنجاح. لا rename لملفات SDK أو symlink لإخفاء اختلاف الهوية.
 
-مصادر الفحص عامة فقط، لا env dump أو أسرار. فشل metadata يعلن unknown لا missing. اكتمال خطوة التشخيص لا يعني أن كل الاعتمادات متاحة أو أن التطبيق بُني. اختبارات XML محلية لا اختبارات شبكة.
+## خطة التصحيح بعد التحقيق — قبل تعديل workflow
 
-الملفات: .github/workflows/android.yml، scripts/probe_dependencies.py، scripts/tests/test_dependency_probe.py، docs/PROJECT_MEMORY.md، docs/CHANGELOG.md، الملحق الحالي. التطبيق وإصداراته لم تتغير في التشخيص.
+1. غيّر معرف حزمة التثبيت فقط إلى platforms;android-37.0. أبق compileSdk/targetSdk37 (مستوى API) والمكتبات المختارة كما هي حتى اختبار AGP الفعلي.
+2. حدّث أمر BUILD والذاكرة والسجل مع الفرق بين package identifier ومستوى API، وأرفق هذا الدليل.
+3. أعد CI وراجع توليد Wrapper ثم Gradle tests/lint/assemble. عند خطأ جديد سجل log قبل تغييره.
+4. بعد نجاح البناء سجل الاختبارات وAPK/التوقيع التجريبي والـchecksum وحدود المعاينة، ولا تعتبر ذلك اختبار جهاز أو اتصال Telegram.
 
-المراجع: https://developer.android.com/tools/sdkmanager ، https://developer.android.com/about/versions/17/setup-sdk ، https://dl.google.com/dl/android/maven2/ ، https://repo.maven.apache.org/maven2/
+## ما اجتاز
+
+repo checks، تباين14، وPython tests13 محليًا ومرحلة checks فيCI؛ XML tests تختبر parser ولا تثبت شبكة، ودليل الشبكة هو artifact المذكور. المراحل اللاحقة للبناء لم تنفذ بعد.
+
+المصادر: https://github.com/ahmed9461/BotOS/actions/runs/35287534204 ، https://developer.android.com/tools/sdkmanager ، https://developer.android.com/about/versions/17/setup-sdk . مصادر Maven الدقيقة محفوظة في artifact.
