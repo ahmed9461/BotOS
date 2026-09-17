@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
@@ -42,6 +43,9 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel()) {
     )) { mutableStateListOf("workspace") }
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
+    // Keep long-lived event collection configuration-aware without restarting it on recomposition.
+    val resources by rememberUpdatedState(LocalResources.current)
+    val previewReply = stringResource(R.string.preview_reply)
     val preferences = snapshot.workspace.preferences
     fun navigate(destination: String) { if (stack.lastOrNull() != destination) stack.add(destination) }
     fun back() { if (stack.size > 1) stack.removeAt(stack.lastIndex) }
@@ -54,7 +58,7 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel()) {
     LaunchedEffect(vm, context) {
         vm.effects.collect { effect ->
             when (effect) {
-                is UiEffect.Notice -> snackbar.showSnackbar(context.getString(effect.stringId))
+                is UiEffect.Notice -> snackbar.showSnackbar(resources.getString(effect.stringId))
                 is UiEffect.Saved -> if (stack.lastOrNull() == effect.origin) back()
             }
         }
@@ -109,7 +113,7 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel()) {
                                 onEdit = { navigate("edit/$it") }, onDelete = vm::remove,
                                 onMove = vm::move, onOpenTelegram = ::openBot,
                                 onDraft = vm::updateDraft,
-                                onSend = { vm.sendPreview(context.getString(R.string.preview_reply)) },
+                                onSend = { vm.sendPreview(previewReply) },
                                 onAction = vm::activate,
                             )
                             route == "appearance" -> AppearanceScreen(preferences, busy || snapshot.loading || snapshot.failed, vm::setTheme, vm::setMotion)

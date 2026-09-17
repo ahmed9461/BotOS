@@ -1,27 +1,25 @@
-# ملحق المهمة 0002 — تصحيح الموارد المتغيرة قبل تسليم المعاينة
+# ملحق المهمة 0002 — تصحيح الموارد المتغيرة
 
-2026-09-18. الحالة: planned. يتبع 0002-ci-recovery و0001-foundation. هذه الخطة تسبق تعديل Kotlin.
+2026-09-18. الحالة: validating. الخطة كتبت في commit e820da62e58ec2640c21d167a206591a17fb5687 قبل تعديل المصدر. يتبع 0002-ci-recovery و0001-foundation.
 
-## الأدلة المقروءة
+## الدليل
 
-Run 35287754553 عند 65fbfdf946c36f25f124c9cbbabfa9d43df74fb4: تجهيز SDK وWrapper نجحا، core:model:test وcore:telegram:test وassembleDebug نُفذت بنجاح. فشل lint منع نشر APK. قرئت حزمة BotOS-checks-4 (artifact 10525415332): JUnit يحتوي 1+3 حالات ناجحة دون تخطي أو فشل؛ الحالة الجامعة للنواة تضم 37 assertion. تقرير lint يضم خطأين و9 تحذيرات، وليس فشل تجميع Kotlin.
+Run 35287754553 عند 65fbfdf946c36f25f124c9cbbabfa9d43df74fb4: SDK وWrapper وcore:model:test وcore:telegram:test وassembleDebug نجحت. lint فشل بخطأين و9 تحذيرات، فلم يُنشر APK. artifact 10525415332 قُرئ كاملًا: JUnit 1+3 حالات ناجحة دون تخطي؛ حالة النواة الجامعة تضم 37 assertion. الخطآن LocalContextGetResourceValueCall في BotOsApp.kt سطر57 و112. تحذير compiler إضافي لشرط selected != null المكرر.
 
-الخطآن LocalContextGetResourceValueCall في BotOsApp.kt سطر57 و112: موارد إشعار الحدث ورد المعاينة غير متتبعة لتغير إعدادات الجهاز. يوجد تحذير compiler عن شرط selected != null دائمًا صحيح بعد isPreview.
+## التقدم
 
-## قراءات البداية
+- [x] قراءة المصدر وتقرير SARIF وتقارير JUnit ومراجعة مرجع LocalResources وrememberUpdatedState.
+- [x] استخدام LocalResources.current مع rememberUpdatedState في مجمع الأحداث، وstringResource لرد المعاينة قبل callback. لا قراءة نصوص من LocalContext.
+- [x] توضيح مسار selected == null/else وإزالة الشرط المكرر دون تغيير السلوك.
+- [ ] إعادة CI وقراءة lint/JUnit/APK؛ لا نجاح مفترض قبل النتيجة.
+- [ ] تحديث نتائج TESTING والذاكرة والخطط وPR، ثم تسليم معاينة محددة المصدر إذا اجتازت جميع البوابات.
 
-ذاكرة المشروع والبنية والقواعد والخطط قُرئت قبل استئناف0002. قرئت الآن BotOsApp.kt وWorkspaceScreen.kt وتقرير SARIF وJUnit XML الكامل. الفرع هو feat/android-foundation، PR#1، ولا تغيير للإصدارات أو تعطيل lint.
+## التحذيرات المتبقية والمتابعة
 
-## خطة التنفيذ ومعيار القبول
+لم نعطل lint ولم نضف baseline أو suppress. التحذيرات التسعة في run4: 3 إشعارات تحديث أدوات البناء، localeConfig على API33+، قواعد نقل البيانات الحديثة، مجلد الأيقونة v26 المكرر، نص غير مستخدم، monochrome icon، واقتراح toUri. لا تغير مجموعة التوافق تلقائيًا. قواعد backup/نقل البيانات واختبار الأيقونة واللغة على جهاز مطلوبة قبل الإنتاج أو حفظ جلسة TDLib؛ المعاينة لا تجمع جلسة.
 
-1. استخدم LocalResources.current مع rememberUpdatedState داخل مجمع الأحداث الطويل؛ لا تلتقط Resources قديمة ولا تعيد تشغيل collector لمجرد إعادة تركيب الواجهة. اقرأ الرد الثابت عبر stringResource في التركيب ومرره للحدث.
-2. احذف الشرط المكرر في مسار البوت غير الفارغ دون تغيير التنقل أو تمرير الأفعال. لا تغيير شكلي واسع ضمن إصلاح البناء.
-3. أعد CI الكامل: checks، Python13، contrast14، JUnit4، lint، assemble، ثم اقرأ التقارير والمخرجات. لا baseline أو suppress أو continue-on-error لإخفاء المشكلة.
-4. راجع التحذيرات ووثق غير المنجز بدقة. التحديثات المتاحة لـAGP/Gradle ليست إذنًا لتجاوز مجموعة التوافق. إعدادات النسخ الاحتياطي الحديثة والأيقونة أحادية اللون واختبارات تغيير اللغة على جهاز مهام متابعة قبل الإنتاج/TDLib؛ المعاينة لا تجمع جلسة حساب.
-5. حدّث PROJECT_MEMORY وCHANGELOG وTESTING والخطط، وحدد نسخة APK المختبرة فقط إن اجتاز run كل بواباته.
+اختبارات إعادة إنشاء Activity وتغير اللغة غير منفذة على جهاز حتى الآن؛ إصلاح المصدر ونجاح lint لاحقًا لا يعوضان ذلك. لا FPS أو اتصال Telegram حي.
 
-## الملفات والتراجع
+الملفات: BotOsApp.kt وWorkspaceScreen.kt ووثائق الذاكرة/السجل/الاختبار. التراجع بcommit عكسي دون محو التاريخ.
 
-BotOsApp.kt وWorkspaceScreen.kt والوثائق أعلاه. التراجع بcommit عكسي لإصلاح المصدر، دون تغيير تاريخ الفرع. لا ادعاء نجاح جهاز أو FPS أو Telegram حي.
-
-المراجع الأولية: https://android.googlesource.com/platform/frameworks/support/+/0624f640fd3a47edfcf8a070f609d278fb5eb41b/compose/ui/ui/src/androidMain/kotlin/androidx/compose/ui/platform/AndroidCompositionLocals.android.kt ، https://developer.android.com/develop/ui/compose/side-effects ، https://github.com/ahmed9461/BotOS/actions/runs/35287754553
+المراجع: https://android.googlesource.com/platform/frameworks/support/+/0624f640fd3a47edfcf8a070f609d278fb5eb41b/compose/ui/ui/src/androidMain/kotlin/androidx/compose/ui/platform/AndroidCompositionLocals.android.kt ، https://developer.android.com/develop/ui/compose/side-effects ، https://github.com/ahmed9461/BotOS/actions/runs/35287754553

@@ -70,7 +70,7 @@ internal fun WorkspaceScreen(
                 }
                 holder.SaveableStateProvider(selected?.id ?: WorkspaceViewModel.PREVIEW) {
                     Column(Modifier.fillMaxSize()) {
-                        if (isPreview) {
+                        if (selected == null) {
                             Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
                                 Text(stringResource(R.string.preview_notice), modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
                                     style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
@@ -78,7 +78,7 @@ internal fun WorkspaceScreen(
                             Spacer(Modifier.height(10.dp))
                             MessageTimelineView(timeline, onAction, modifier = Modifier.weight(1f))
                             Composer(draft, onDraft, onSend)
-                        } else if (selected != null) {
+                        } else {
                             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                                 Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth().animateContentSize(tween(duration))) {
                                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
