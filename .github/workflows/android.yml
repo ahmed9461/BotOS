@@ -1,0 +1,92 @@
+name: Android foundation
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+        with:
+          gradle-version: '9.6.1'
+      - name: Documentation and source checks
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          python3 scripts/check_repo.py --base "$BASE_SHA"
+          python3 scripts/check_contrast.py
+          bash -n scripts/install_android_sdk.sh
+          python3 -m unittest discover -s scripts/tests -v
+      - name: Inspect dependency publication metadata
+        run: |
+          mkdir -p diagnostics
+          python3 scripts/probe_dependencies.py | tee diagnostics/dependencies.json
+        shell: bash
+      - name: Install Android platform
+        shell: bash
+        run: |
+          mkdir -p diagnostics
+          status=0
+          bash scripts/install_android_sdk.sh "platforms;android-37.0" "build-tools;36.0.0" > diagnostics/android-setup.txt 2>&1 || status=$?
+          tail -n 25 diagnostics/android-setup.txt
+          if [ "$status" -ne 0 ]; then
+            root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+            manager="$root/cmdline-tools/latest/bin/sdkmanager"
+            if [ -x "$manager" ]; then
+              "$manager" --sdk_root="$root" --list --channel=0 > diagnostics/sdk-packages.txt 2>&1 || echo 'Package listing failed; see diagnostic artifact.'
+              grep -E 'platforms;android-|cmdline-tools;|build-tools;' diagnostics/sdk-packages.txt || true
+            fi
+          fi
+          exit "$status"
+      - name: Generate official Gradle wrapper
+        run: gradle --no-daemon wrapper --gradle-version 9.6.1 --distribution-type bin --gradle-distribution-sha256-sum 9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14
+      - name: Test, lint and build preview
+        run: ./gradlew --no-daemon :core:model:test :core:telegram:test :app:lintDebug :app:assembleDebug
+      - name: APK integrity
+        run: |
+          mkdir -p artifacts
+          cp app/build/outputs/apk/debug/app-debug.apk artifacts/BotOS-0.1.0-preview.apk
+          sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
+      - name: Upload preview APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: BotOS-preview-${{ github.run_number }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload official wrapper
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: BotOS-build-tools-${{ github.run_number }}
+          path: |
+            gradlew
+            gradlew.bat
+            gradle/wrapper/
+          retention-days: 14
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: BotOS-checks-${{ github.run_number }}
+          path: |
+            core/*/build/test-results/
+            core/*/build/reports/tests/
+            app/build/reports/lint-results-debug.*
+            diagnostics/
+          retention-days: 14
