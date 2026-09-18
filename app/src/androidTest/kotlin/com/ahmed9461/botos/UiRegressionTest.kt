@@ -4,6 +4,7 @@ import android.app.LocaleManager
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.LocaleList
+import android.util.Log
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.AnnotatedString
@@ -34,12 +35,33 @@ class UiRegressionTest {
         }
         ui.waitForIdle()
         windowReady()
+        Log.i("BotOSUiTest", "ready")
     }
 
-    private fun windowReady() {
-        ui.waitUntil(10_000) {
-            ui.runOnIdle { ui.activity.window.decorView.hasWindowFocus() }
+    private data class WindowSnapshot(
+        val focused: Boolean, val imeVisible: Boolean,
+        val rootHeight: Int, val imeBottom: Int, val density: Float,
+    )
+    private fun windowSnapshot(): WindowSnapshot {
+        var snapshot: WindowSnapshot? = null
+        // Call from the instrumentation thread. Never nest ActivityScenario in runOnIdle:
+        // the activity getter drains the main looper and can deadlock synchronization.
+        ui.activityRule.scenario.onActivity { activity ->
+            val root = activity.window.decorView
+            val insets = ViewCompat.getRootWindowInsets(root)
+            snapshot = WindowSnapshot(
+                root.hasWindowFocus(),
+                insets?.isVisible(WindowInsetsCompat.Type.ime()) == true,
+                root.height, insets?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0,
+                activity.resources.displayMetrics.density,
+            )
         }
+        return checkNotNull(snapshot)
+    }
+    private fun windowReady() {
+        Log.i("BotOSUiTest", "waiting_for_window_focus")
+        ui.waitUntil(10_000) { windowSnapshot().focused }
+        Log.i("BotOSUiTest", "window_focused")
     }
     private fun enabled(tag: String) {
         ui.waitUntil(10_000) {
@@ -57,6 +79,7 @@ class UiRegressionTest {
         ui.onNodeWithTag("theme-$name").assertIsSelected()
     }
     private fun screenshot(name: String) {
+        Log.i("BotOSUiTest", "screenshot:$name")
         ui.waitForIdle()
         val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
             ?: error("Device screenshot unavailable")
@@ -105,11 +128,7 @@ class UiRegressionTest {
         // Exercise the real pointer/focus path. Do not inject text before the input session exists.
         ui.onNodeWithTag("composer-input").assertIsDisplayed().performTouchInput { click() }
         try {
-            ui.waitUntil(15_000) {
-                ui.runOnIdle {
-                    ViewCompat.getRootWindowInsets(ui.activity.window.decorView)?.isVisible(WindowInsetsCompat.Type.ime()) == true
-                }
-            }
+            ui.waitUntil(15_000) { windowSnapshot().imeVisible }
         } catch (failure: ComposeTimeoutException) {
             try { screenshot("keyboard-not-shown") }
             catch (captureFailure: Exception) { failure.addSuppressed(captureFailure) }
@@ -118,14 +137,12 @@ class UiRegressionTest {
         ui.onNodeWithTag("composer-input").assertIsFocused().performTextInput("رسالة تجريبية")
         ui.onNodeWithTag("bottom-dock").assertDoesNotExist()
         ui.waitForIdle()
-        val root = ui.activity.window.decorView
-        val inset = ViewCompat.getRootWindowInsets(root)!!.getInsets(WindowInsetsCompat.Type.ime()).bottom
+        val window = windowSnapshot()
         val composer = ui.onNodeWithTag("composer-bar").fetchSemanticsNode().boundsInWindow
-        val gap = root.height - inset - composer.bottom
-        val density = ui.activity.resources.displayMetrics.density
-        val gapDp = gap / density
+        val gap = window.rootHeight - window.imeBottom - composer.bottom
+        val gapDp = gap / window.density
         PlatformTestStorageRegistry.getInstance().openOutputFile("keyboard-gap.txt").bufferedWriter().use {
-            it.write("rootHeight=${root.height}\nimeBottom=$inset\ncomposerBottom=${composer.bottom}\ngapDp=$gapDp\n")
+            it.write("rootHeight=${window.rootHeight}\nimeBottom=${window.imeBottom}\ncomposerBottom=${composer.bottom}\ngapDp=$gapDp\n")
         }
         screenshot("keyboard-ar")
         assertTrue("Composer overlaps IME or leaves an excessive gap: $gapDp dp", gapDp >= -2f && gapDp <= 12f)
