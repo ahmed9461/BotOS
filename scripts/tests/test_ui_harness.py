@@ -15,22 +15,24 @@ class UiHarnessContractTest(unittest.TestCase):
         ).read_text()
 
     def test_menu_key_is_not_used_to_unlock_or_prepare_home(self):
-        self.assertNotIn("input keyevent 82", self.script)
-        self.assertNotIn("KEYCODE_MENU", self.script)
+        self.assertNotIn("shell input keyevent 82", self.script)
+        self.assertNotIn("shell input keyevent KEYCODE_MENU", self.script)
+        self.assertIn("shell input keyevent KEYCODE_WAKEUP", self.script)
         self.assertIn("wm dismiss-keyguard", self.script)
 
-    def test_disposable_emulator_parks_on_settings_before_instrumentation(self):
+    def test_disposable_emulator_only_observes_stable_foreground(self):
         guard = self.script.index("ro.kernel.qemu")
-        resolve_home = self.script.index("resolve-activity --brief --user 0")
-        stop_home = self.script.index('am force-stop "$home_package"')
-        settings = self.script.index("android.settings.SETTINGS")
+        preflight = self.script.index("preflight_deadline")
         instrumentation = self.script.index(":app:connectedDebugAndroidTest")
-        self.assertLess(guard, resolve_home)
-        self.assertLess(resolve_home, stop_home)
-        self.assertLess(stop_home, settings)
-        self.assertLess(settings, instrumentation)
-        self.assertIn("mResumedActivity", self.script)
-        self.assertIn("com.android.settings", self.script)
+        self.assertLess(guard, preflight)
+        self.assertLess(preflight, instrumentation)
+        self.assertNotIn("resolve-activity --brief --user 0", self.script)
+        self.assertNotIn("am force-stop", self.script)
+        self.assertNotIn("android.settings.SETTINGS", self.script)
+        self.assertIn("dumpsys window lastanr", self.script)
+        self.assertIn("<no ANR has occurred since boot>", self.script)
+        self.assertIn("topResumedActivity=|ResumedActivity:", self.script)
+        self.assertIn("mCurrentFocus=", self.script)
 
     def test_production_ui_regression_thresholds_are_not_relaxed(self):
         self.assertIn(

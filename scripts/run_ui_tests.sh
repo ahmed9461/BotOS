@@ -59,7 +59,7 @@ while (( SECONDS < deadline )); do
   sleep 2
 done
 if [[ "$device_ready" != '1' ]]; then echo 'Emulator did not boot within 240 seconds'; tail -n 80 diagnostics/ui/emulator.txt; exit 1; fi
-printf 'Device booted. Preparing a stable foreground before actual UI regression tests.\n'
+printf 'Device booted. Waiting for a stable unlocked foreground before actual UI regression tests.\n'
 # These settings belong only to this disposable, non-secure emulator.
 if [[ "$(timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell getprop ro.kernel.qemu | tr -d '\r')" != '1' ]]; then
   echo 'Refusing to change screen settings on a non-emulator device.' >&2
@@ -70,33 +70,24 @@ timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell svc power stayon true
 timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell input keyevent KEYCODE_WAKEUP
 timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell wm dismiss-keyguard
 
-# KEYCODE_MENU used to make HOME part of the critical path. On fresh Google APIs images
-# Pixel Launcher can ANR before instrumentation starts and hold the system ANR dialog over
-# BotOS. Resolve HOME dynamically, stop it only on this disposable emulator, and park on
-# Settings so an ActivityScenario recreation never falls through to the launcher.
-home_component="$(timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell cmd package resolve-activity --brief --user 0 -a android.intent.action.MAIN -c android.intent.category.HOME 2>/dev/null | tr -d '\r' | tail -n 1 || true)"
-if [[ "$home_component" != */* ]]; then
-  printf 'home_component=%s\n' "$home_component" > diagnostics/ui/preflight.txt
-  echo 'Could not resolve the emulator HOME activity.' >&2
-  exit 1
-fi
-home_package="${home_component%%/*}"
-if [[ ! "$home_package" =~ ^[A-Za-z0-9._]+$ ]]; then
-  printf 'home_component=%s\n' "$home_component" > diagnostics/ui/preflight.txt
-  echo 'Resolved HOME package has an unexpected shape.' >&2
-  exit 1
-fi
-printf 'home_package=%s\n' "$home_package" > diagnostics/ui/preflight.txt
-timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell am force-stop "$home_package"
-timeout -k 2s 20s adb -s "$ANDROID_SERIAL" shell am start -W -a android.settings.SETTINGS >> diagnostics/ui/preflight.txt 2>&1
-
+# Do not synthesize MENU/HOME input or manipulate a launcher package here. On the fresh
+# Google APIs image the HOME intent can resolve through the SDK setup wrapper even while
+# NexusLauncher is the real resumed/focused activity. We only require the disposable
+# emulator to reach a focused, resumed, ANR-free state before instrumentation takes over.
 preflight_ready=0
 preflight_deadline=$((SECONDS + 20))
 while (( SECONDS < preflight_deadline )); do
   activity_state="$(timeout -k 2s 6s adb -s "$ANDROID_SERIAL" shell dumpsys activity activities 2>/dev/null || true)"
-  resumed="$(grep -m1 'mResumedActivity' <<<"$activity_state" || true)"
-  if [[ "$resumed" == *'com.android.settings'* ]]; then
-    printf 'resumed=%s\n' "$resumed" >> diagnostics/ui/preflight.txt
+  window_state="$(timeout -k 2s 6s adb -s "$ANDROID_SERIAL" shell dumpsys window 2>/dev/null || true)"
+  last_anr="$(timeout -k 2s 6s adb -s "$ANDROID_SERIAL" shell dumpsys window lastanr 2>/dev/null || true)"
+  resumed="$(grep -Em1 'topResumedActivity=|ResumedActivity:' <<<"$activity_state" || true)"
+  focused="$(grep -m1 'mCurrentFocus=' <<<"$window_state" || true)"
+  if [[ -n "$resumed" && -n "$focused" && "$focused" != *'mCurrentFocus=null'* && "$last_anr" == *'<no ANR has occurred since boot>'* ]]; then
+    {
+      printf 'resumed=%s\n' "$resumed"
+      printf 'focused=%s\n' "$focused"
+      printf 'last_anr=none\n'
+    } > diagnostics/ui/preflight.txt
     preflight_ready=1
     break
   fi
@@ -105,8 +96,9 @@ done
 if [[ "$preflight_ready" != '1' ]]; then
   timeout -k 2s 5s adb -s "$ANDROID_SERIAL" shell dumpsys activity activities > diagnostics/ui/preflight-activity.txt 2>&1 || true
   timeout -k 2s 5s adb -s "$ANDROID_SERIAL" shell dumpsys window > diagnostics/ui/preflight-window.txt 2>&1 || true
+  timeout -k 2s 5s adb -s "$ANDROID_SERIAL" shell dumpsys window lastanr > diagnostics/ui/preflight-lastanr.txt 2>&1 || true
   timeout -k 2s 5s adb -s "$ANDROID_SERIAL" exec-out screencap -p > diagnostics/ui/preflight-screen.png || true
-  echo 'System Settings did not become the resumed activity before UI tests.' >&2
+  echo 'Emulator did not reach an ANR-free focused/resumed state before UI tests.' >&2
   exit 1
 fi
 
