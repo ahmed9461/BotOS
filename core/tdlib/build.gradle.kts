@@ -24,7 +24,7 @@ androidComponents {
         }
     }
 }
-val verifyNativeInputs by tasks.registering {
+val verifyNativeInputs = tasks.register("verifyNativeInputs") {
     doLast {
         nativeDirectories.forEach { (abi, directory) ->
             check(directory.resolve("$abi/libtdjsonjava.so").isFile) {

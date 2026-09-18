@@ -8,6 +8,7 @@ on:
       - 'gradle/**'
       - 'scripts/build_tdlib.sh'
       - 'scripts/check_tdlib_contract.py'
+      - 'scripts/check_runtime_evidence.py'
       - 'scripts/run_ui_tests.sh'
       - '.github/workflows/tdlib-native.yml'
   workflow_dispatch:
@@ -107,19 +108,7 @@ jobs:
       - name: Require actual runtime and UI evidence
         run: |
           python3 scripts/check_device_evidence.py
-          python3 - <<'PY'
-          from pathlib import Path
-          import xml.etree.ElementTree as ET
-          reports = list(Path('core/tdlib/build/outputs/androidTest-results').rglob('TEST-*.xml'))
-          suites = [ET.parse(p).getroot() for p in reports]
-          assert sum(int(x.get('tests', 0)) for x in suites) == 8, 'Expected eight native/storage tests'
-          assert all(int(x.get(k, 0)) == 0 for x in suites for k in ('failures', 'errors', 'skipped')), 'Native/storage test did not pass'
-          evidence = [p for p in Path('core/tdlib/build/outputs').rglob('native-runtime.txt') if 'additional_output' in str(p)]
-          assert len(evidence) == 1, 'Native evidence missing or ambiguous'
-          text = evidence[0].read_text()
-          assert 'version=1.8.67' in text and 'accountUsed=false' in text and 'unicodeRoundTrip=passed' in text
-          print(text)
-          PY
+          python3 scripts/check_runtime_evidence.py
       - name: Archive exact tested source
         if: always()
         run: |
