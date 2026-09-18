@@ -33,8 +33,14 @@ class UiRegressionTest {
             }
         }
         ui.waitForIdle()
+        windowReady()
     }
 
+    private fun windowReady() {
+        ui.waitUntil(10_000) {
+            ui.runOnIdle { ui.activity.window.decorView.hasWindowFocus() }
+        }
+    }
     private fun enabled(tag: String) {
         ui.waitUntil(10_000) {
             ui.onAllNodesWithTag(tag).fetchSemanticsNodes().firstOrNull()?.config?.contains(SemanticsProperties.Disabled) == false
@@ -95,10 +101,21 @@ class UiRegressionTest {
         enabled("preview-tab")
         ui.onNodeWithTag("preview-tab").performClick()
         screenshot("workspace-ar")
-        ui.onNodeWithTag("composer-input").performClick().performTextInput("رسالة تجريبية")
-        ui.waitUntil(15_000) {
-            ViewCompat.getRootWindowInsets(ui.activity.window.decorView)?.isVisible(WindowInsetsCompat.Type.ime()) == true
+        windowReady()
+        // Exercise the real pointer/focus path. Do not inject text before the input session exists.
+        ui.onNodeWithTag("composer-input").assertIsDisplayed().performTouchInput { click() }
+        try {
+            ui.waitUntil(15_000) {
+                ui.runOnIdle {
+                    ViewCompat.getRootWindowInsets(ui.activity.window.decorView)?.isVisible(WindowInsetsCompat.Type.ime()) == true
+                }
+            }
+        } catch (failure: ComposeTimeoutException) {
+            try { screenshot("keyboard-not-shown") }
+            catch (captureFailure: Exception) { failure.addSuppressed(captureFailure) }
+            throw failure
         }
+        ui.onNodeWithTag("composer-input").assertIsFocused().performTextInput("رسالة تجريبية")
         ui.onNodeWithTag("bottom-dock").assertDoesNotExist()
         ui.waitForIdle()
         val root = ui.activity.window.decorView
