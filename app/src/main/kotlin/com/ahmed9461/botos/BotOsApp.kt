@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -37,6 +38,7 @@ import com.ahmed9461.botos.design.*
 import com.ahmed9461.botos.model.*
 
 /** One inset owner; each destination observes live state inside its own composition. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BotOsApp(vm: WorkspaceViewModel = viewModel()) {
     val shellState by vm.workspace.collectAsStateWithLifecycle()
@@ -93,7 +95,7 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel()) {
         // Union takes the maximum, not the sum. Children must not add IME/navigation padding.
         val safeInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.ime)
         Scaffold(
-            modifier = Modifier.fillMaxSize().windowInsetsPadding(safeInsets),
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).windowInsetsPadding(safeInsets),
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { SnackbarHost(snackbar) },

@@ -2,6 +2,7 @@ package com.ahmed9461.botos
 
 import android.app.LocaleManager
 import android.graphics.Bitmap
+import android.os.Build
 import android.os.LocaleList
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
@@ -25,8 +26,10 @@ class UiRegressionTest {
 
     @Before fun ready() {
         ui.waitUntil(10_000) { ui.onAllNodesWithTag("bottom-dock").fetchSemanticsNodes().isNotEmpty() }
-        ui.activityRule.scenario.onActivity {
-            it.getSystemService(LocaleManager::class.java).applicationLocales = LocaleList.forLanguageTags("ar")
+        if (Build.VERSION.SDK_INT >= 33) {
+            ui.activityRule.scenario.onActivity {
+                it.getSystemService(LocaleManager::class.java).applicationLocales = LocaleList.forLanguageTags("ar")
+            }
         }
         ui.waitForIdle()
     }
@@ -71,7 +74,6 @@ class UiRegressionTest {
         screenshot("appearance-light-ar")
         theme("DARK")
         screenshot("appearance-dark-ar")
-        // Leave a changed value and verify the stored setting after recreating the Activity.
         enabled("motion-toggle")
         val expected = if (motion() == ToggleableState.On) ToggleableState.Off else ToggleableState.On
         ui.onNodeWithTag("motion-toggle").performClick()
@@ -95,7 +97,6 @@ class UiRegressionTest {
         }
         ui.onNodeWithTag("bottom-dock").assertDoesNotExist()
         ui.waitForIdle()
-        // Insets and semantics are both measured against the Activity's full edge-to-edge root.
         val root = ui.activity.window.decorView
         val inset = ViewCompat.getRootWindowInsets(root)!!.getInsets(WindowInsetsCompat.Type.ime()).bottom
         val composer = ui.onNodeWithTag("composer-bar").fetchSemanticsNode().boundsInWindow

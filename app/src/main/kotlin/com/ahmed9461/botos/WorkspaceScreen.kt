@@ -30,6 +30,7 @@ import com.ahmed9461.botos.data.StoreSnapshot
 import com.ahmed9461.botos.design.*
 import com.ahmed9461.botos.model.*
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun WorkspaceScreen(
     snapshot: StoreSnapshot, selectedId: String, timeline: MessageTimeline, draft: String, busy: Boolean,
