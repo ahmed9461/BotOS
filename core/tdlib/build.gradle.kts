@@ -7,16 +7,33 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }
-    sourceSets["main"].jniLibs.srcDirs(
-        rootProject.file("native/output/arm64-v8a/jniLibs"),
-        rootProject.file("native/output/x86_64/jniLibs"),
-    )
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
     lint { abortOnError = true }
 }
+val nativeDirectories = listOf("arm64-v8a", "x86_64").map { abi ->
+    abi to rootProject.file("native/output/$abi/jniLibs")
+}
+// Use the public variant API; the legacy AndroidLibrarySourceSet cast is invalid in AGP 9.
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        nativeDirectories.filter { it.second.isDirectory }.forEach { (_, directory) ->
+            variant.sources.jniLibs?.addStaticSourceDirectory(directory.absolutePath)
+        }
+    }
+}
+val verifyNativeInputs by tasks.registering {
+    doLast {
+        nativeDirectories.forEach { (abi, directory) ->
+            check(directory.resolve("$abi/libtdjsonjava.so").isFile) {
+                "Missing pinned TDLib runtime for $abi. Run scripts/build_tdlib.sh for both ABIs first."
+            }
+        }
+    }
+}
+tasks.named("preBuild") { dependsOn(verifyNativeInputs) }
 kotlin { jvmToolchain(21) }
 dependencies {
     implementation(project(":core:telegram"))
