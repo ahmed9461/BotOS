@@ -18,7 +18,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 
-enum class Glyph { SPACE, ADD, APPEARANCE, BACK, MORE, SEND, CLOSE, CHECK, UP, DOWN, LINK }
+enum class Glyph { SPACE, LIBRARY, ADD, APPEARANCE, BACK, MORE, SEND, CLOSE, CHECK, UP, DOWN, LINK }
 
 /** Original rounded line artwork. No Apple or Telegram assets are distributed. */
 @Composable
@@ -29,23 +29,24 @@ fun BotGlyph(glyph: Glyph, description: String? = null, modifier: Modifier = Mod
             val stroke = Stroke(1.8f, cap = StrokeCap.Round)
             fun line(x1: Float, y1: Float, x2: Float, y2: Float) = drawLine(tint, Offset(x1, y1), Offset(x2, y2), 1.8f, StrokeCap.Round)
             when (glyph) {
-                Glyph.SPACE -> {
-                    listOf(3f to 3f, 14f to 3f, 3f to 14f, 14f to 14f).forEach { (x, y) ->
-                        drawRoundRect(tint, Offset(x, y), Size(7f, 7f), CornerRadius(2.4f), style = stroke)
-                    }
+                Glyph.SPACE -> listOf(3f to 3f, 14f to 3f, 3f to 14f, 14f to 14f).forEach { (x, y) ->
+                    drawRoundRect(tint, Offset(x, y), Size(7f, 7f), CornerRadius(2.4f), style = stroke)
+                }
+                Glyph.LIBRARY -> {
+                    drawRoundRect(tint, Offset(3f, 4f), Size(7f, 16f), CornerRadius(2f), style = stroke)
+                    drawRoundRect(tint, Offset(13f, 4f), Size(7f, 16f), CornerRadius(2f), style = stroke)
+                    line(5.5f, 8f, 7.5f, 8f); line(15.5f, 16f, 17.5f, 16f)
                 }
                 Glyph.ADD -> { line(12f, 4f, 12f, 20f); line(4f, 12f, 20f, 12f) }
                 Glyph.APPEARANCE -> {
                     drawCircle(tint, 8.5f, Offset(12f, 12f), style = stroke)
                     drawCircle(tint, 4.2f, Offset(12f, 12f), style = stroke)
-                    line(12f, 3.5f, 12f, 7.8f)
-                    line(12f, 16.2f, 12f, 20.5f)
+                    line(12f, 3.5f, 12f, 7.8f); line(12f, 16.2f, 12f, 20.5f)
                 }
                 Glyph.BACK -> {
                     val end = if (rtl) 19f else 5f
                     val start = if (rtl) 5f else 19f
-                    val middle = 12f
-                    line(start, 12f, end, 12f); line(end, 12f, middle, 5f); line(end, 12f, middle, 19f)
+                    line(start, 12f, end, 12f); line(end, 12f, 12f, 5f); line(end, 12f, 12f, 19f)
                 }
                 Glyph.MORE -> listOf(5f, 12f, 19f).forEach { drawCircle(tint, 1.8f, Offset(it, 12f)) }
                 Glyph.SEND -> { line(12f, 20f, 12f, 4f); line(12f, 4f, 5f, 11f); line(12f, 4f, 19f, 11f) }

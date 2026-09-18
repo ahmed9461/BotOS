@@ -1,0 +1,19 @@
+<resources>
+    <string name="library">مكتبتي</string>
+    <string name="space_intro">كل بوت، في مكانه.</string>
+    <string name="local_preview">معاينة غير متصلة</string>
+    <string name="library_intro">أسماؤك المفضلة، مرتبة كما تحب.</string>
+    <string name="library_empty_hint">أضف بوتًا وسمّه بالاسم الذي يناسبك.</string>
+    <string name="search_library">ابحث في مكتبتك…</string>
+    <string name="saved_count">البوتات المحفوظة: %1$d</string>
+    <string name="no_search_results">لم نجد اسمًا مطابقًا.</string>
+    <string name="edit_short">تعديل</string>
+    <string name="editor_intro">اسم تعرفه، ومساحة تخصّه.</string>
+    <string name="appearance_intro">تفاصيل صغيرة، على ذوقك.</string>
+    <string name="theme_section">ألوان مساحتك</string>
+    <string name="motion_section">راحة الاستخدام</string>
+    <string name="motion_reduced">مفعّل · انتقالات أبسط</string>
+    <string name="motion_full">متوقف · انتقالات مرنة</string>
+    <string name="refinement_version">نسخة المعاينة 0.2</string>
+    <string name="close">إغلاق</string>
+</resources>

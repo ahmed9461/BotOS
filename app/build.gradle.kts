@@ -9,8 +9,9 @@ android {
         applicationId = "com.ahmed9461.botos"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0-preview"
+        versionCode = 2
+        versionName = "0.2.0-preview"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true }
     compileOptions {
@@ -38,4 +39,8 @@ dependencies {
     implementation(libs.navigation3.runtime)
     implementation(libs.coroutines.android)
     debugImplementation(libs.compose.tooling)
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
 }

@@ -1,0 +1,19 @@
+<resources>
+    <string name="library">Library</string>
+    <string name="space_intro">A place for every bot.</string>
+    <string name="local_preview">Offline preview</string>
+    <string name="library_intro">Your favourites, in your own order.</string>
+    <string name="library_empty_hint">Add a bot and give it a name that feels familiar.</string>
+    <string name="search_library">Search your library…</string>
+    <string name="saved_count">Saved bots: %1$d</string>
+    <string name="no_search_results">No matching names.</string>
+    <string name="edit_short">Edit</string>
+    <string name="editor_intro">A familiar name. A space of its own.</string>
+    <string name="appearance_intro">Little details, your way.</string>
+    <string name="theme_section">Your colours</string>
+    <string name="motion_section">Comfort</string>
+    <string name="motion_reduced">On · Simpler transitions</string>
+    <string name="motion_full">Off · Fluid transitions</string>
+    <string name="refinement_version">Preview version 0.2</string>
+    <string name="close">Close</string>
+</resources>
