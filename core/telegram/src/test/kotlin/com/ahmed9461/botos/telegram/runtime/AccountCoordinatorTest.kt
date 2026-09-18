@@ -54,14 +54,14 @@ class AccountCoordinatorTest {
         override fun close() { scope.cancel() }
     }
 
-    @Test fun noConfigurationNeverOpensOrReadsRestorePermission() = runBlocking {
+    @Test fun noConfigurationNeverOpensOrReadsRestorePermission() = runBlocking<Unit> {
         Fixture(configured = false).use { f ->
             f.coordinator.restore(); f.coordinator.connect(true)
             assertEquals(0, f.opens); assertEquals(0, f.prefs.reads)
             assertEquals(AccountIssue.CONFIGURATION, f.coordinator.state.value.issue)
         }
     }
-    @Test fun explicitConsentIsRequiredBeforeOpeningAClient() = runBlocking {
+    @Test fun explicitConsentIsRequiredBeforeOpeningAClient() = runBlocking<Unit> {
         Fixture().use { f ->
             f.coordinator.connect(false)
             assertEquals(0, f.opens); assertEquals(AccountIssue.CONSENT, f.coordinator.state.value.issue)
@@ -69,19 +69,19 @@ class AccountCoordinatorTest {
             assertEquals(1, f.opens); assertFalse(f.prefs.allowed)
         }
     }
-    @Test fun freshInstallDoesNotRestoreAndRestoreCheckRunsOnlyOnce() = runBlocking {
+    @Test fun freshInstallDoesNotRestoreAndRestoreCheckRunsOnlyOnce() = runBlocking<Unit> {
         Fixture().use { f ->
             f.coordinator.restore(); f.coordinator.restore()
             assertEquals(0, f.opens); assertEquals(1, f.prefs.reads)
         }
     }
-    @Test fun previousPermissionRestoresButDoesNotInventLoginSuccess() = runBlocking {
+    @Test fun previousPermissionRestoresButDoesNotInventLoginSuccess() = runBlocking<Unit> {
         Fixture(prefs = Preferences(true)).use { f ->
             f.coordinator.restore(); f.waitStep(AuthStep.PHONE)
             assertEquals(1, f.opens); assertNull(f.coordinator.ready.value)
         }
     }
-    @Test fun okDoesNotAdvanceCodeAndStaleSubmissionDoesNotReachSession() = runBlocking {
+    @Test fun okDoesNotAdvanceCodeAndStaleSubmissionDoesNotReachSession() = runBlocking<Unit> {
         Fixture().use { f ->
             f.coordinator.connect(true)
             f.fake.step.value = AuthStep.CODE; f.waitStep(AuthStep.CODE)
@@ -94,7 +94,7 @@ class AccountCoordinatorTest {
             assertFalse(f.coordinator.state.value.toString().contains("synthetic-code"))
         }
     }
-    @Test fun identityRequiresReadyAndEnablesFutureRestoreOnlyThen() = runBlocking {
+    @Test fun identityRequiresReadyAndEnablesFutureRestoreOnlyThen() = runBlocking<Unit> {
         Fixture().use { f ->
             f.coordinator.connect(true); assertFalse(f.prefs.allowed)
             f.ready()
@@ -102,7 +102,7 @@ class AccountCoordinatorTest {
             assertFalse(f.coordinator.state.value.toString().contains("Synthetic name"))
         }
     }
-    @Test fun identityTimeoutIsReportedWithoutInventingAnAccountIdentity() = runBlocking {
+    @Test fun identityTimeoutIsReportedWithoutInventingAnAccountIdentity() = runBlocking<Unit> {
         Fixture().use { f ->
             f.coordinator.connect(true)
             f.fake.identity = { withTimeout(1) { awaitCancellation() } }
@@ -111,7 +111,7 @@ class AccountCoordinatorTest {
             assertNull(f.coordinator.ready.value); assertFalse(f.prefs.allowed)
         }
     }
-    @Test fun nativeFactoryFailureReturnsToARecoverableClosedState() = runBlocking {
+    @Test fun nativeFactoryFailureReturnsToARecoverableClosedState() = runBlocking<Unit> {
         Fixture().use { f ->
             f.factory = { throw TdFailure(FailureKind.NATIVE) }
             f.coordinator.connect(true)
@@ -120,7 +120,7 @@ class AccountCoordinatorTest {
             f.factory = { f.fake }; f.coordinator.connect(true); f.waitStep(AuthStep.PHONE)
         }
     }
-    @Test fun initializationFailureClosesButNeverLogsOutOrErases() = runBlocking {
+    @Test fun initializationFailureClosesButNeverLogsOutOrErases() = runBlocking<Unit> {
         Fixture().use { f ->
             f.fake.init = { throw TdFailure(FailureKind.REMOTE, 500) }
             f.coordinator.connect(true)
@@ -128,7 +128,7 @@ class AccountCoordinatorTest {
             assertEquals(AuthStep.CLOSED, f.coordinator.state.value.step)
         }
     }
-    @Test fun cancellationClosesUnfinishedLoginWithoutRevocation() = runBlocking {
+    @Test fun cancellationClosesUnfinishedLoginWithoutRevocation() = runBlocking<Unit> {
         Fixture().use { f ->
             val entered = CompletableDeferred<Unit>()
             f.fake.init = { entered.complete(Unit); awaitCancellation() }
@@ -138,7 +138,7 @@ class AccountCoordinatorTest {
             assertFalse(f.coordinator.state.value.busy)
         }
     }
-    @Test fun concurrentConnectDoesNotCreateTwoOwners() = runBlocking {
+    @Test fun concurrentConnectDoesNotCreateTwoOwners() = runBlocking<Unit> {
         Fixture().use { f ->
             val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
             f.fake.init = { entered.complete(Unit); release.await(); f.fake.step.value = AuthStep.PHONE }
@@ -149,7 +149,7 @@ class AccountCoordinatorTest {
             assertFalse(f.coordinator.state.value.busy)
         }
     }
-    @Test fun failedLogoutDisablesRestoreButDoesNotPretendToBeClosed() = runBlocking {
+    @Test fun failedLogoutDisablesRestoreButDoesNotPretendToBeClosed() = runBlocking<Unit> {
         Fixture().use { f ->
             f.coordinator.connect(true); f.ready()
             f.fake.logout = { throw TdFailure(FailureKind.REMOTE, 500) }
@@ -159,7 +159,7 @@ class AccountCoordinatorTest {
             assertEquals(AccountIssue.CONNECTION, f.coordinator.state.value.issue)
         }
     }
-    @Test fun successfulLogoutClearsReadyAndOldSessionCannotOverrideNewOne() = runBlocking {
+    @Test fun successfulLogoutClearsReadyAndOldSessionCannotOverrideNewOne() = runBlocking<Unit> {
         Fixture().use { f ->
             f.coordinator.connect(true); f.ready(); f.coordinator.logOut()
             assertFalse(f.prefs.allowed); assertNull(f.coordinator.ready.value)
@@ -171,7 +171,7 @@ class AccountCoordinatorTest {
             assertNull(f.coordinator.ready.value)
         }
     }
-    @Test fun cleanupFailureAfterClosedIsNotReportedAsSuccessfulErasure() = runBlocking {
+    @Test fun cleanupFailureAfterClosedIsNotReportedAsSuccessfulErasure() = runBlocking<Unit> {
         Fixture().use { f ->
             f.coordinator.connect(true); f.ready()
             f.fake.logout = { f.fake.step.value = AuthStep.CLOSED; error("Synthetic cleanup failure") }
@@ -180,7 +180,7 @@ class AccountCoordinatorTest {
             assertNull(f.coordinator.ready.value); assertFalse(f.prefs.allowed)
         }
     }
-    @Test fun permissionWriteAndLogoutAreSerializedSoIdentityCannotReenableRestore() = runBlocking {
+    @Test fun permissionWriteAndLogoutAreSerializedSoIdentityCannotReenableRestore() = runBlocking<Unit> {
         Fixture().use { f ->
             f.coordinator.connect(true)
             val writing = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
