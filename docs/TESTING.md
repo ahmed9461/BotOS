@@ -1,59 +1,56 @@
 # الاختبارات والأدلة
 
-## المعاينة المختبرة — 2026-09-18
+آخر مراجعة: 2026-09-18. المصدر المختبر الحالي: `e9b45c60bd8de80d206146c49be0288d0245e464`. هذه النتائج تخص P2a والواجهة المعتمدة، وليست دخولًا إلى حساب مستخدم.
 
-الكود: `7724a5fbc1459aac58b8d829f6e4ded1b8281f71` على feat/android-foundation. [Run35288442618](https://github.com/ahmed9461/BotOS/actions/runs/35288442618) نجح بالكامل. التوثيق المضاف بعده لا يعد تغييرًا في الكود المختبر.
+## أحدث بوابة مكتملة
 
-| الفحص | الدليل والنتيجة |
+[تشغيل المحرك 35380280277](https://github.com/ahmed9461/BotOS/actions/runs/35380280277) نجح كاملًا. نُزلت حزمة `BotOS-runtime-checks-8`، رقم `10562130090`، وفُحص ZIP وطابقت بصمتها:
+`35b9fb907820bc726e949b8dab0b4a5c940bda0f8e7a4b6462ee5fee9c57e9f4`.
+
+| الفحص | النتيجة المقروءة |
 |---|---|
-| بنية المستودع وXML والإصدارات وتزامن التوثيق | ناجح فيCI |
-| Python | 13 ناجحة: 10 محاكاة لتجهيز SDK و3 parser للـmetadata |
-| تباين الألوان | 14 زوجًا ناجحًا؛ >=4.5:1 للنص العادي في الأزواج المحددة |
-| JUnit للنواة | حالة جامعة واحدة، تضم37 assertion؛ 0 فشل/خطأ/تخطي |
-| JUnit للمعاينة | 3 حالات؛ 0 فشل/خطأ/تخطي |
-| Android lint | 0 أخطاء، 9 تحذيرات؛ لم تُعطل القواعد أو تُخفَ النتائج |
-| assembleDebug ورفع APK | ناجحان |
-| Wrapper الرسمي | تولد واستُخدم بنجاح، ومرفق كحزمة منفصلة |
+| JVM | 21 حالة: CoreTest1، PreviewTest3، AuthorizationTest8، TdTransportTest9؛ لا فشل/خطأ/تخطي |
+| JNI وKeystore على محاكي API35 | 8 حالات، لا فشل/خطأ/تخطي |
+| واجهة التطبيق على المحاكي | 3 حالات، لا فشل/خطأ/تخطي؛ المدة44.988 ثانية |
+| lint وحدة core:tdlib | صفر أخطاء وصفر تحذيرات |
+| native-runtime.txt | version1.8.67، commit مطابق للمصدر المثبت، العربية/emoji ناجحة، waitTdlibParameters، accountUsed=false |
+| اللقطات | سبع صور فعلية فُتحت للمراجعة: المظهر بثلاث حالاته، المساحة، المكتبة، المحرر، والكيبورد |
+| الكيبورد | gap6.095238dp؛ rootHeight2400، imeBottom883، composerBottom1501؛ ضمن شرط -2..12dp |
+| AAR | فُحص الأرشيف؛ يحتوي libtdjsonjava.so لكل من arm64-v8a وx86_64؛ ليس APK متصلًا |
 
-قُرئت تقارير JUnit XML وlint XML من **BotOS-checks-5 / artifact10526005208**؛ بصمة حزمة الأدلة:
-`a6abfe6ea3ae3fd25156494698f6d72f4e3e753f64d5d949d7502c96308b7074`.
-لا تخلط37 assertion بعدد حالات JUnit الأربع. اختبار parser ليس اختبار شبكة؛ نشر الاعتمادات تحقق من metadata الرسمي فعليًا داخلCI.
+[تشغيل Android المستقل 35380280304](https://github.com/ahmed9461/BotOS/actions/runs/35380280304) نجح أيضًا في tests/lint/assemble واختبارات الواجهة وجمع الأدلة وإخراج معاينة0.2. لا يثبت ذلك إرسال رسالة حقيقية من داخل التطبيق.
 
-## APK القابل للتتبع
+تفاصيل البصمات والحدود: [إغلاق P2a](tasks/0004-validation-complete.md).
 
-**BotOS-0.1.0-preview.apk**، الحجم12,910,987 بايت، debug preview، artifact10525521304 / BotOS-preview-5. SHA256:
-`b33a1093f52d0d6bb49ecfac88e05284d7b604cc3caa9c75330bf92fe526516b`.
+## إصلاح التعليق دون تخفيف الشروط
 
-نُزل ZIP وأُكدت بصمته (`7ba151c5adf0a197aef9d6e2df02239e55301dfe22aaea0feeccbaec30ef06b3`)، ثم استُخرج APK وقورنت بصمته مع SHA256SUMS وتحقق CRC ووجود AndroidManifest وDEX. لا يعني ذلك فحص برمجيات خبيثة أو تشغيلًا على جهاز. لا مفتاح توقيع إنتاج للمالك في هذه الشريحة.
+التشغيل35377793103 على89351f43 اجتاز21JVM و8JNI/Keystore، لكن UI توقف عند0/3 حتى مهلة8دقائق. حدث مثله في Android35377793037. فُحصت حزمة10561902603 وبصمتها c3f9e92cf62db1149683ebc982866dbd38ccebfd9590e0a10a023da3b309aecb.
 
-[حزمة APK](https://github.com/ahmed9461/BotOS/actions/runs/35288442618/artifacts/10525521304) · [حزمة الأدلة](https://github.com/ahmed9461/BotOS/actions/runs/35288442618/artifacts/10526005208) · [Wrapper المولد](https://github.com/ahmed9461/BotOS/actions/runs/35288442618/artifacts/10525391589). حزمCI مؤقتة؛ تاريخ الانتهاء المعلن لهذه الحزم2026-10-01.
+خطة8d25d289 سبقت تصحيحe9b45c60: إزالة runOnIdle المتداخل مع getter النشاط، وقراءة snapshot النافذة مرة واحدة عبرActivityScenario من خيط الاختبار. لا تغيير في الست تبديلات أو ظهور الكيبورد الفعلي أو شرط المسافة أو حفظ المدخلات/الإرسال. نجاح التشغيلين أعلاه ليس نتيجة تكرار الفشل حتى يظهر نجاح عشوائي؛ سبقه تعديل محدد في المزامنة. لا تغيير في تصميم الإنتاج أو الأيقونة.
 
-## التحذيرات التسعة والمتابعة
+## السجل السابق
 
-3 إشعارات توفر تحديثات لـGradle/AGP: تُراجع مع مصفوفة التوافق لا بترقية عشوائية. تحذير localeConfig خاص بـAPI33+، وقواعد dataExtractionRules، ومجلد أيقونةv26 زائد معmin26، ونص empty_bots غير مستخدم، وأيقونة monochrome مفقودة، واقتراح String.toUri. لا ندعي lint بلا تحذيرات. قواعد النسخ/نقل البيانات يجب إكمالها قبل الاحتفاظ بجلسة Telegram، ومراجعة الأيقونة قبل الإنتاج.
+0.2 على158c5258 اجتازت35294173820: أربعJVM وثلاثUI وسبع لقطات وgap6.095238dp. lint التطبيق صفر أخطاء و18تحذيرًا؛ لا تخلط ذلك مع lint المحرك0/0. شهادةdebug اختلفت عن0.1، لذلك لا نوصي بحذف نسخة صاحب الحساب أو بياناته بصمت.
 
-## سجل الوصول إلى النجاح
+0.1 على7724a5f اجتازت35288442618: Python13، contrast14، JUnit4، lint0أخطاء/9تحذيرات، وAPK. حالة CoreTest الواحدة تضم37assertion؛ ليست37حالةJUnit منفصلة. سبقها فشلPATH، ثم معرفSDK، ثم خطآن بموارد اللغة. التقارير والتفاصيل التاريخية محفوظة في Git وخطط0001 و0002، ولم تُعطل الفحوص للوصول إلى نسخة ناجحة.
 
-- run35284171101: فشل PATH قبل Gradle.
-- run35287275281: إصلاح PATH نجح؛ فشل معرف حزمةSDK.
-- run35287534204: تشخيص نشر الاعتمادات وقائمةSDK أثبت الحزمة37.0، دون تخفيض الإصدارات.
-- run35287754553: JUnit وassemble نجحت؛ lint فشل بخطأين في موارد اللغة ومنع تسليم APK. قُرئت حزمة10525415332.
-- run35288442618: الإصلاح اجتاز lint وبقية البوابات، وخرجت الحزم أعلاه.
+## ما لم يثبت بعد
 
-## الأوامر
+لا تسجيل دخول Telegram أو بوت حي من داخل app. لا اختبار حساب/OTP/كلمة مرور في CI. نجاحJNI/Keystore واختبارات مدخلات مصطنعة لا يستبدل تجربة صاحب الحساب. لا قياسFPS أو BaselineProfiles أو TalkBack شامل أو مصفوفة أجهزة أو runtime16KB أو اختبار شبكة ضعيفة. محاذاةELF ليست اختبار تشغيل16KB. توقيع الإنتاج الدائم وقواعد النسخ تحتاج اكتمالًا قبل إصدار متصل عام.
+
+## أوامر التحقق
 
 ```sh
 python3 scripts/check_repo.py --base <base-commit>
 python3 scripts/check_contrast.py
-bash -n scripts/install_android_sdk.sh
+python3 scripts/check_ui_contract.py
 python3 -m unittest discover -s scripts/tests -v
-./gradlew --no-daemon :core:model:test :core:telegram:test :app:lintDebug :app:assembleDebug
+python3 scripts/check_tdlib_contract.py
+./gradlew --no-daemon :core:model:test :core:telegram:test :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest
+./gradlew --no-daemon :core:tdlib:lintDebug :core:tdlib:assembleDebug :core:tdlib:assembleDebugAndroidTest
+bash scripts/run_ui_tests.sh :core:tdlib:connectedDebugAndroidTest
+python3 scripts/check_device_evidence.py
+python3 scripts/check_runtime_evidence.py
 ```
 
-راجع BUILD لتوليد Wrapper بالأداة الرسمية. الاختبارات المحلية لا تستبدلCI Android؛ لم يكن SDK متاحًا في الحاوية المحلية.
-
-## ما لم يُختبر بعد
-
-لم يُشغل التطبيق على هاتف أو محاكي، ولم تُراجع screenshots أو FPS أو Baseline Profiles أو TalkBack. يلزم اختبار: إضافة/تعديل/ترتيب/حذف bookmark، إعادة التشغيل وحفظ التفضيلات، الثيمات وتقليل الحركة، رجوع المحرر والضغط المتكرر، تغيير اللغة أثناء إشعار، الجداول والتفاصيل والأزرار، RTL/English وخط200% وشاشة صغيرة. **نجاح APK لا يثبت سلاسة الواجهة.**
-
-لا TDLib JNI أو تسجيل دخول أو نص/وسائط/streaming حقيقية في هذه المعاينة. لا تعد اختبارات PreviewGateway اختبارات Telegram.
+المكتبات الأصلية يجب أن تكون من نفس تشغيل البناء المثبت. Wrapper يولد رسميًا وفقBUILD. البيئة المحلية بلاAndroidSDK؛ اختبارات الجهاز المعلنة نفذت عبرActions، لا في الحاوية المحلية.
