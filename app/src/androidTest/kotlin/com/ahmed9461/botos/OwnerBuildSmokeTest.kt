@@ -1,9 +1,7 @@
 package com.ahmed9461.botos
 
-import android.app.LocaleManager
 import android.content.pm.ApplicationInfo
-import android.os.Build
-import android.os.LocaleList
+import android.util.Log
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -30,13 +28,15 @@ class OwnerBuildSmokeTest {
             assertEquals("com.ahmed9461.botos.preview", context.packageName)
             assertEquals(0, context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE)
         }
+        // This smoke validates fresh startup, not a configuration change midway through it.
+        // Locale, RTL and activity recreation remain covered by UiRegressionTest.
+        Log.i("BotOSOwnerTest", "waiting_for_workspace")
         ui.waitUntil(10_000) { ui.onAllNodesWithTag("bottom-dock").fetchSemanticsNodes().isNotEmpty() }
-        if (Build.VERSION.SDK_INT >= 33) ui.activityRule.scenario.onActivity {
-            it.getSystemService(LocaleManager::class.java).applicationLocales = LocaleList.forLanguageTags("ar")
-        }
-        ui.waitForIdle()
+        Log.i("BotOSOwnerTest", "opening_appearance")
         ui.onNodeWithTag("nav-appearance").performClick()
+        Log.i("BotOSOwnerTest", "opening_account")
         ui.onNodeWithTag("open-account").performScrollTo().performClick()
+        Log.i("BotOSOwnerTest", "checking_consent_gate")
         ui.onNodeWithTag("account-input").assertDoesNotExist()
         if (requireConfigured) {
             ui.onNodeWithTag("account-consent").assertExists().assertIsOff()
@@ -49,10 +49,12 @@ class OwnerBuildSmokeTest {
         val app = context.applicationContext as BotOsApplication
         assertEquals(AuthStep.CLOSED, app.account.state.value.step)
         assertFalse("A fresh install must not create a session", File(context.noBackupFilesDir, "telegram").exists())
+        Log.i("BotOSOwnerTest", "writing_startup_evidence")
         PlatformTestStorageRegistry.getInstance().openOutputFile("owner-startup.txt").bufferedWriter().use {
             it.write("configured=${BuildConfig.TELEGRAM_CONFIGURED}\napplicationId=${context.packageName}\n")
             it.write("debuggable=${context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0}\n")
             it.write("consentGate=true\nsessionCreated=false\naccountUsed=false\n")
         }
+        Log.i("BotOSOwnerTest", "startup_verified")
     }
 }

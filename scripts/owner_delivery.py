@@ -4,6 +4,7 @@ from pathlib import Path
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -90,6 +91,11 @@ def validate_startup_report(path: Path) -> None:
     if root.tag not in {'testsuite', 'testsuites'}:
         raise ValueError('Unsupported startup report root')
     for node in root.iter():
+        # Interrupted instrumentation can write zero failures and a negative unfinished time.
+        if node.tag in {'testsuite', 'testsuites', 'testcase'} and 'time' in node.attrib:
+            elapsed = float(node.attrib['time'])
+            if not math.isfinite(elapsed) or elapsed < 0:
+                raise ValueError('Startup report contains an unfinished or invalid duration')
         if node.tag in {'failure', 'error', 'skipped'}:
             raise ValueError('Startup report contains a failed or skipped result')
         if node.tag in {'testsuite', 'testsuites'}:
