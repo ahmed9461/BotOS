@@ -5,6 +5,7 @@ import com.ahmed9461.botos.data.AccountRestoreStore
 import com.ahmed9461.botos.tdlib.AndroidTelegramSession
 import com.ahmed9461.botos.telegram.runtime.AccountCoordinator
 import com.ahmed9461.botos.telegram.runtime.AccountSessionFactory
+import com.ahmed9461.botos.telegram.runtime.BotConversations
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,6 +23,7 @@ class BotOsApplication : Application() {
             accountScope,
         )
     }
+    val botConversations: BotConversations by lazy { BotConversations(account, accountScope) }
     override fun onCreate() {
         super.onCreate()
         accountScope.launch { account.restore() }

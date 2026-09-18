@@ -1,4 +1,4 @@
 <resources>
-    <string name="account_about_body">BotOS is an independent app that uses Telegram. The preview is separate from your account. Configured builds let you connect with your consent; in-app bot conversations are still being completed.</string>
+    <string name="account_about_body">BotOS is an independent app that uses Telegram. The preview is separate from your account. Configured builds support text and basic bot buttons after connecting. Some media and advanced features are not available yet.</string>
     <string name="account_version">Version %1$s</string>
 </resources>

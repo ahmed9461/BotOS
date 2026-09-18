@@ -1,0 +1,19 @@
+<resources>
+    <string name="live_workspace">محادثة البوت</string>
+    <string name="live_sign_in_hint">اربط حساب Telegram أولًا لتستخدم هذا البوت من داخل BotOS.</string>
+    <string name="live_not_bot">هذا الاسم لا يشير إلى بوت Telegram متاح. راجع الاسم من المكتبة.</string>
+    <string name="live_loading_error">تعذر فتح المحادثة الآن. تحقق من اتصالك ثم أعد المحاولة.</string>
+    <string name="live_connected">محادثة Telegram</string>
+    <string name="live_start">بدء البوت</string>
+    <string name="live_message_hint">اكتب رسالة…</string>
+    <string name="live_uncertain">لم يصل تأكيد الطلب. راجع المحادثة قبل المحاولة مجددًا حتى لا يتكرر الإرسال.</string>
+    <string name="live_stale">تغيرت هذه الأزرار. استخدم الأزرار المعروضة حاليًا.</string>
+    <string name="live_unsupported">لا تدعم هذه النسخة هذا الإجراء، أو أن الرسالة غير صالحة.</string>
+    <string name="live_reload_needed">تحتاج المحادثة إلى تحديث قبل المتابعة.</string>
+    <string name="live_send_error">تعذر إكمال الطلب. راجع الاتصال والمحادثة قبل المحاولة مجددًا.</string>
+    <string name="live_open_link">فتح هذا الرابط؟</string>
+    <string name="live_open">فتح</string>
+    <string name="delivery_pending">جارٍ الإرسال…</string>
+    <string name="delivery_failed">تعذر الإرسال</string>
+    <string name="delivery_sent">أُرسلت</string>
+</resources>

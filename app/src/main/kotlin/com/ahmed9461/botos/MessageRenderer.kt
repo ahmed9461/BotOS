@@ -32,7 +32,7 @@ internal fun MessageTimelineView(timeline: MessageTimeline, onAction: (ActionTic
     val listState = rememberLazyListState()
     val duration = LocalMotionMillis.current
     val followTail by remember { derivedStateOf { !listState.canScrollForward } }
-    LaunchedEffect(timeline.messages.lastOrNull()?.id) {
+    LaunchedEffect(timeline.chat, timeline.messages.lastOrNull()?.id) {
         if (timeline.messages.isNotEmpty() && (followTail || timeline.messages.takeLast(2).any { it.outgoing })) {
             if (duration == 0) listState.scrollToItem(timeline.messages.lastIndex) else listState.animateScrollToItem(timeline.messages.lastIndex)
         }
@@ -46,11 +46,17 @@ internal fun MessageTimelineView(timeline: MessageTimeline, onAction: (ActionTic
                     contentColor = if (message.outgoing) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                     border = if (message.outgoing) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     modifier = Modifier.fillMaxWidth(if (message.outgoing) .88f else 1f)) {
-                    // Do not animate the height of an entire long report on every streamed edit.
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         message.blocks.take(ContentLimits.MAX_BLOCKS).forEach { block ->
                             key(block.id) { RenderBlock(block, message, onAction, 0) }
                         }
+                        if (message.delivery != DeliveryState.NONE) Text(
+                            stringResource(when (message.delivery) {
+                                DeliveryState.PENDING -> R.string.delivery_pending
+                                DeliveryState.FAILED -> R.string.delivery_failed
+                                else -> R.string.delivery_sent
+                            }), style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.testTag("delivery-${message.id}"))
                         if (message.blocks.size > ContentLimits.MAX_BLOCKS) Text(stringResource(R.string.content_limited), style = MaterialTheme.typography.labelSmall)
                     }
                 }
@@ -60,7 +66,7 @@ internal fun MessageTimelineView(timeline: MessageTimeline, onAction: (ActionTic
 }
 
 @Composable
-private fun RenderBlock(block: Block, message: BotMessage, onAction: (ActionTicket) -> Unit, depth: Int) {
+internal fun RenderBlock(block: Block, message: BotMessage, onAction: (ActionTicket) -> Unit, depth: Int) {
     if (depth >= ContentLimits.MAX_DEPTH) { Text(stringResource(R.string.content_limited)); return }
     val duration = LocalMotionMillis.current
     when (block) {
