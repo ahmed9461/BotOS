@@ -23,9 +23,11 @@ class AndroidTelegramSession private constructor(
     private val ownerToken: Any,
     val transport: TdTransport,
     val authorization: Authorization,
-) {
+) : AccountSession {
+    override val step get() = authorization.step
+    override val rpc: TdRpc get() = transport
     private val lifecycle = Mutex()
-    suspend fun initialize(credentials: TelegramAppCredentials) = lifecycle.withLock {
+    override suspend fun initialize(credentials: TelegramAppCredentials) = lifecycle.withLock {
         withTimeout(15_000) { authorization.step.first { it == AuthStep.PARAMETERS } }
         val key = withContext(Dispatchers.IO) { vault.loadOrCreate() }
         try {
@@ -34,14 +36,25 @@ class AndroidTelegramSession private constructor(
                 Build.MODEL, Build.VERSION.RELEASE, "BotOS P2 runtime"), key)
         } finally { key.fill(0) }
     }
+    override suspend fun submit(expectedStep: AuthStep, value: String) {
+        when (expectedStep) {
+            AuthStep.PHONE -> authorization.phone(value)
+            AuthStep.EMAIL -> authorization.email(value)
+            AuthStep.EMAIL_CODE -> authorization.emailCode(value)
+            AuthStep.CODE -> authorization.code(value)
+            AuthStep.PASSWORD -> authorization.password(value)
+            else -> throw TdFailure(FailureKind.WRONG_STATE)
+        }
+    }
     /** Local close keeps the encrypted session available for next launch. */
-    suspend fun close() = lifecycle.withLock {
+    override suspend fun close(): Unit = lifecycle.withLock {
         transport.close()
         authorization.close()
         nativeOwner.compareAndSet(ownerToken, null)
+        Unit
     }
     /** Never erase a session on network error, cancellation, or a local close. */
-    suspend fun logOut() = lifecycle.withLock {
+    override suspend fun logOut() = lifecycle.withLock {
         authorization.logOut()
         // Retain the process owner until erasure ends; a new client must not reopen these files.
         try { withContext(Dispatchers.IO) { vault.eraseAfterConfirmedLogout() } }
