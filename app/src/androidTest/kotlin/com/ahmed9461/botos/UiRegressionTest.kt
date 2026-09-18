@@ -1,10 +1,12 @@
 package com.ahmed9461.botos
 
+import android.app.KeyguardManager
 import android.app.LocaleManager
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.LocaleList
 import android.util.Log
+import android.view.WindowManager
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.AnnotatedString
@@ -34,6 +36,12 @@ class UiRegressionTest {
             }
         }
         ui.waitForIdle()
+        ui.activityRule.scenario.onActivity { activity ->
+            activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            val keyguard = activity.getSystemService(KeyguardManager::class.java)
+            check(!keyguard.isDeviceSecure) { "UI tests require a disposable non-secure emulator" }
+            if (keyguard.isKeyguardLocked) keyguard.requestDismissKeyguard(activity, null)
+        }
         windowReady()
         Log.i("BotOSUiTest", "ready")
     }
@@ -60,7 +68,13 @@ class UiRegressionTest {
     }
     private fun windowReady() {
         Log.i("BotOSUiTest", "waiting_for_window_focus")
-        ui.waitUntil(10_000) { windowSnapshot().focused }
+        try {
+            ui.waitUntil(10_000) { windowSnapshot().focused }
+        } catch (failure: ComposeTimeoutException) {
+            try { screenshot("window-focus-timeout") }
+            catch (captureFailure: Exception) { failure.addSuppressed(captureFailure) }
+            throw failure
+        }
         Log.i("BotOSUiTest", "window_focused")
     }
     private fun enabled(tag: String) {

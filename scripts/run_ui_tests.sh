@@ -22,7 +22,12 @@ cleanup() {
   set +e
   if [[ "$device_ready" == '1' ]]; then
     timeout -k 2s 8s adb -s "$ANDROID_SERIAL" pull /sdcard/Android/data/com.ahmed9461.botos/files/ui-evidence diagnostics/ui/ > diagnostics/ui/evidence-pull.txt 2>&1
-    timeout -k 2s 5s adb -s "$ANDROID_SERIAL" logcat -d -s AndroidRuntime > diagnostics/ui/runtime.txt 2>&1
+    timeout -k 2s 5s adb -s "$ANDROID_SERIAL" logcat -d -s AndroidRuntime BotOSUiTest > diagnostics/ui/runtime.txt 2>&1
+    if [[ "$status" != '0' ]]; then
+      timeout -k 2s 5s adb -s "$ANDROID_SERIAL" shell dumpsys window > diagnostics/ui/failure-window.txt 2>&1
+      timeout -k 2s 5s adb -s "$ANDROID_SERIAL" shell dumpsys power > diagnostics/ui/failure-power.txt 2>&1
+      timeout -k 2s 5s adb -s "$ANDROID_SERIAL" exec-out screencap -p > diagnostics/ui/failure-screen.png
+    fi
     timeout -k 2s 5s adb -s "$ANDROID_SERIAL" emu kill >/dev/null 2>&1
   fi
   if [[ -n "$emulator_pid" ]]; then kill "$emulator_pid" >/dev/null 2>&1; fi
@@ -55,6 +60,15 @@ while (( SECONDS < deadline )); do
 done
 if [[ "$device_ready" != '1' ]]; then echo 'Emulator did not boot within 240 seconds'; tail -n 80 diagnostics/ui/emulator.txt; exit 1; fi
 printf 'Device booted. Running actual UI regression tests.\n'
+# These settings belong only to this disposable, non-secure emulator.
+if [[ "$(timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell getprop ro.kernel.qemu | tr -d '\r')" != '1' ]]; then
+  echo 'Refusing to change screen settings on a non-emulator device.' >&2
+  exit 1
+fi
+timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell settings put system screen_off_timeout 1800000
+timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell svc power stayon true
+timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell input keyevent KEYCODE_WAKEUP
+timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell wm dismiss-keyguard
 timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell input keyevent 82
 timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell settings put secure show_ime_with_hard_keyboard 1
 timeout -k 15s 8m ./gradlew --no-daemon --console=plain :app:connectedDebugAndroidTest "$@" 2>&1 | tee diagnostics/ui/tests.txt
