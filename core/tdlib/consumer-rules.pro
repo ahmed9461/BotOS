@@ -1,0 +1,2 @@
+-keep class org.drinkless.tdlib.JsonClient { *; }
+-keep interface org.drinkless.tdlib.JsonClient$LogMessageHandler { *; }

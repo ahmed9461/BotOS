@@ -5,3 +5,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "BotOS"
 include(":app", ":core:model", ":core:telegram", ":core:data", ":core:designsystem")
+include(":core:tdlib")
