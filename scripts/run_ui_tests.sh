@@ -57,4 +57,4 @@ if [[ "$device_ready" != '1' ]]; then echo 'Emulator did not boot within 240 sec
 printf 'Device booted. Running actual UI regression tests.\n'
 timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell input keyevent 82
 timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell settings put secure show_ime_with_hard_keyboard 1
-timeout -k 15s 8m ./gradlew --no-daemon --console=plain :app:connectedDebugAndroidTest 2>&1 | tee diagnostics/ui/tests.txt
+timeout -k 15s 8m ./gradlew --no-daemon --console=plain :app:connectedDebugAndroidTest "$@" 2>&1 | tee diagnostics/ui/tests.txt

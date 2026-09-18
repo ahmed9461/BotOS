@@ -3,7 +3,12 @@ on:
   pull_request:
     paths:
       - 'native/**'
+      - 'core/telegram/**'
+      - 'core/tdlib/**'
+      - 'gradle/**'
       - 'scripts/build_tdlib.sh'
+      - 'scripts/check_tdlib_contract.py'
+      - 'scripts/run_ui_tests.sh'
       - '.github/workflows/tdlib-native.yml'
   workflow_dispatch:
 permissions:
@@ -61,3 +66,76 @@ jobs:
           path: native/output/${{ matrix.abi }}/
           if-no-files-found: error
           retention-days: 30
+  verify-runtime:
+    needs: native
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c
+        with:
+          gradle-version: '9.6.1'
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: TDLib-native-arm64-v8a-${{ github.run_number }}
+          path: native/output/arm64-v8a
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: TDLib-native-x86_64-${{ github.run_number }}
+          path: native/output/x86_64
+      - name: Verify pinned native contract and unchanged design
+        run: |
+          python3 scripts/check_tdlib_contract.py
+          python3 scripts/check_repo.py
+          python3 scripts/check_contrast.py
+          python3 scripts/check_ui_contract.py
+      - name: Configure Android and official wrapper
+        run: |
+          bash scripts/install_android_sdk.sh 'platforms;android-37.0' 'build-tools;36.0.0' > /tmp/botos-sdk-setup.txt 2>&1 || { tail -n 30 /tmp/botos-sdk-setup.txt; exit 1; }
+          gradle --no-daemon wrapper --gradle-version 9.6.1 --distribution-type bin --gradle-distribution-sha256-sum 9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14
+      - name: Compile and lint runtime and device tests
+        run: ./gradlew --no-daemon --console=plain :core:model:test :core:telegram:test :core:tdlib:lintDebug :core:tdlib:assembleDebug :core:tdlib:assembleDebugAndroidTest :app:assembleDebugAndroidTest
+      - name: Test real JNI and Keystore alongside approved UI
+        run: bash scripts/run_ui_tests.sh :core:tdlib:connectedDebugAndroidTest
+      - name: Require actual runtime and UI evidence
+        run: |
+          python3 scripts/check_device_evidence.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          reports = list(Path('core/tdlib/build/outputs/androidTest-results').rglob('TEST-*.xml'))
+          suites = [ET.parse(p).getroot() for p in reports]
+          assert sum(int(x.get('tests', 0)) for x in suites) == 8, 'Expected eight native/storage tests'
+          assert all(int(x.get(k, 0)) == 0 for x in suites for k in ('failures', 'errors', 'skipped')), 'Native/storage test did not pass'
+          evidence = [p for p in Path('core/tdlib/build/outputs').rglob('native-runtime.txt') if 'additional_output' in str(p)]
+          assert len(evidence) == 1, 'Native evidence missing or ambiguous'
+          text = evidence[0].read_text()
+          assert 'version=1.8.67' in text and 'accountUsed=false' in text and 'unicodeRoundTrip=passed' in text
+          print(text)
+          PY
+      - name: Archive exact tested source
+        if: always()
+        run: |
+          mkdir -p diagnostics
+          git archive -o diagnostics/runtime-source.zip HEAD
+      - name: Publish runtime test reports and AAR
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: BotOS-runtime-checks-${{ github.run_number }}
+          retention-days: 30
+          path: |
+            diagnostics/
+            core/telegram/build/test-results/
+            core/model/build/test-results/
+            core/tdlib/build/reports/
+            core/tdlib/build/outputs/androidTest-results/
+            core/tdlib/build/outputs/aar/
+            app/build/outputs/androidTest-results/
