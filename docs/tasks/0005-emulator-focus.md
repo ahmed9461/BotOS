@@ -1,26 +1,30 @@
 # ملحق 0005 — تثبيت بيئة UI بعد تشخيص ANR للـ Launcher
 
-التاريخ: 2026-09-18. الحالة: planned قبل الكود. نقطة البداية `e8f86b4cfae53fd987eaa8454c19c2d133ad34b5` على `feat/telegram-connection` / PR4. هذه الشريحة لا تغير واجهة الإنتاج أو التصميم أو الأيقونة أو مهلة انتظار تركيز نافذة التطبيق أو شرط فجوة الكيبورد.
+التاريخ: 2026-09-18. الحالة: replanned من دليل التشغيل 13 قبل التصحيح الثاني. الفرع `feat/telegram-connection` / PR4. هذه الشريحة لا تغير واجهة الإنتاج أو التصميم أو الأيقونة أو مهلة انتظار تركيز نافذة التطبيق أو شرط فجوة الكيبورد.
 
 ## الأدلة المقروءة
 
-- التشغيل الموثوق `35387386142` على نفس المصدر نجح في تهيئة بيانات Telegram: وصل الزوج كاملًا إلى المهمة السرية، اجتاز تحقق الصيغة، وتطابق `BuildConfig` المولد مع المدخلات داخل runner دون طباعة القيم أو رفع المصدر المولد. النتيجة المنطقية كانت configured، والمصادقة بقيت `not_tested`.
-- تشغيل Android `35387390277` نجح في فحوص المصدر و24 Python وJVM/lint/assemble، ثم فشلت حالات UI الثلاث جميعًا في `windowReady` بعد 10 ثوانٍ.
-- تشغيل native `35387390278` نجح في arm64-v8a وx86_64، وبناء/JVM و8 حالات JNI/Keystore، ثم فشل نفس حالات UI الثلاث عند نفس حاجز التركيز.
-- فُتحت لقطة الفشل من الحزمة `BotOS-runtime-checks-12`: نافذة نظام تقول `Pixel Launcher isn't responding`. و`dumpsys window lastanr` يحدد `com.google.android.apps.nexuslauncher/.NexusLauncherActivity` والسبب `Input dispatching timed out (Application does not have a focused window)`، بينما الطاقة `Awake`. إذًا الفشل الحالي في تهيئة المحاكي/Launcher قبل وصول الاختبار إلى واجهة BotOS، وليس دليلًا على عطب الشاشة نفسها.
+- التشغيل الموثوق `35387386142` على `e8f86b4c` نجح في تهيئة بيانات Telegram: وصل الزوج كاملًا إلى المهمة السرية، اجتاز تحقق الصيغة، وتطابق `BuildConfig` المولد مع المدخلات داخل runner دون طباعة القيم أو رفع المصدر المولد. النتيجة المنطقية configured، والمصادقة `not_tested`.
+- Android `35387390277` وnative `35387390278` نجحا في الفحوص/JVM/lint/build، وnative نجح في 8 JNI/Keystore، ثم فشلت حالات UI الثلاث عند `windowReady` بعد 10 ثوانٍ. حزمة التشغيل 12 أظهرت dialog `Pixel Launcher isn't responding` وANR لـNexusLauncher بينما الجهاز Awake.
+- الخطة الأولى `072e5ddc` سبقت تعديل `b64d06b1`: أزيل فعل المفتاح 82، وأضيفت محاولة إيقاف HOME ووضع Settings في المقدمة دون تغيير assertions.
+- Android `35388722974` على `b64d06b1` توقف مبكرًا لأن اختبارًا ساكنًا منع كلمة `KEYCODE_MENU` حتى داخل تعليق توثيقي؛ هذا false positive في الاختبار نفسه، لا استخدام فعلي للمفتاح.
+- native `35388722988` وصل إلى preflight بعد نجاح المعماريتين والتجميع/JVM/lint. الحزمة `BotOS-runtime-checks-13` وبصمتها المسجلة في Actions `fed3214520695b004d3f3120edb1e603cb481f2402b690c3957ecf2cddff6584` قُرئت فعليًا.
+- `preflight.txt` يثبت أن `resolve-activity MAIN+HOME` أعاد `com.google.android.googlesdksetup`، لا NexusLauncher، رغم أن `am start -W -a android.settings.SETTINGS` أعاد `Status: ok` و`Activity: com.android.settings/.homepage.SettingsHomepageActivity`.
+- بعد ذلك مباشرة `preflight-activity.txt` و`preflight-window.txt` يثبتان أن NexusLauncher هو `topResumedActivity` و`mCurrentFocus`، وأنه مرسوم ومرئي. `lastanr` يقول صراحة `<no ANR has occurred since boot>`، والصورة تُظهر Launcher طبيعيًا بلا dialog. إذًا حذف المفتاح 82 أزال العطل المرصود في هذه المحاولة، بينما محاولة حل HOME عبر Package Manager كانت خاطئة لأن Setup wrapper يتصدر intent أثناء حالة الجهاز هذه، ومحاولة فرض Settings لم تضف قيمة.
 
-## الخطة الملزمة
+## الخطة المنقحة الملزمة
 
-1. إزالة الاعتماد على `KEYCODE_MENU`/المفتاح 82 كوسيلة لفتح الجهاز؛ هذا الإدخال يضع الـLauncher في المسار الحرج بعد الإقلاع، بينما `wm dismiss-keyguard` موجود أصلًا.
-2. بعد التأكد أن الهدف محاكي غير آمن، إبقاء الشاشة مستيقظة، ثم تحديد تطبيق HOME الفعلي من Package Manager بدل افتراض اسم ثابت. إيقاف HOME المؤقت على هذا المحاكي فقط، ثم وضع شاشة Settings النظامية في المقدمة كحالة مستقرة قبل بدء instrumentation.
-3. التحقق بمهلة مستقلة محدودة أن Settings أصبحت النشاط المستأنف، وحفظ التشخيص في `diagnostics/ui` عند عدم تحقق ذلك. هذه مهلة تجهيز للمحاكي وليست زيادة لمهلة `UiRegressionTest.windowReady` ذات 10 ثوانٍ.
-4. عدم تغيير `UiRegressionTest` أو عتبة فجوة الكيبورد `-2..12dp` أو شرط IME الحقيقي أو اختبارات الحفظ/المظهر. لا حذف أو skip أو retry عشوائي للحالات.
-5. تشغيل بوابتي Android وnative الناتجتين عن تحديث PR، ثم قراءة XML/اللقطات وملفات window/power قبل إعلان نجاح. نجاح compile وحده لا يغلق الشريحة.
-6. إذا نجحت بوابتا UI، يُغلق ملحق تهيئة البناء بالأدلة ويصبح التالي شاشة الحساب الحقيقية وربطها بمنسق واحد. إذا استمر الفشل، يُقرأ الدليل الجديد ويُعالج سببه دون تخفيف الاختبار.
+1. أبقِ إزالة `KEYCODE_MENU`/المفتاح 82 من التنفيذ الفعلي؛ لا تعيده بأي اسم. أصلح اختبار العقد الساكن ليمنع أوامر الإدخال الفعلية فقط (`input keyevent 82` أو `input keyevent KEYCODE_MENU`) ولا يفشل بسبب تعليق يذكر السبب التاريخي.
+2. أزل حل HOME الديناميكي و`force-stop` ومحاولة تثبيت Settings؛ الدليل يثبت أن resolver لا يعكس الـLauncher الحقيقي في هذه البيئة وأن Settings تعود إلى HOME بلا فائدة.
+3. بعد wake + `wm dismiss-keyguard` على المحاكي غير الآمن، نفّذ preflight محدودًا يراقب حالة النظام فقط: يجب أن توجد نافذة مركزة ونشاط resumed، ويجب ألا يحتوي `dumpsys window lastanr` على ANR حقيقي. لا يشترط اسم حزمة معينة ولا يغير أي تطبيق نظام.
+4. احتفظ بتشخيص preflight (activity/window/screenshot) عند الفشل. هذه مهلة تجهيز مستقلة ولا تغير `UiRegressionTest.windowReady=10s` أو انتظار IME=15s أو gap=-2..12dp.
+5. لا تغير `UiRegressionTest` أو UI الإنتاج أو الحركة/الثيم/Insets. لا skip ولا retry عشوائي ولا زيادة مهل للوصول إلى نجاح.
+6. شغّل بوابتي Android وnative على التعديل الجديد. النجاح يتطلب نفس حالات UI الثلاث و8 JNI/Keystore وJVM/lint/build، ثم قراءة XML واللقطات والقياس. إذا فشل، اقرأ الدليل الجديد قبل أي تعديل آخر.
+7. بعد نجاح البوابتين، أغلق ملحق تهيئة البناء بالأدلة وانتقل فقط عندها إلى شاشة الحساب الحقيقية وربطها بمنسق واحد وTDLib.
 
 ## معايير القبول
 
-- لا ANR أو dialog من HOME يمنع نشاط الاختبار من أخذ التركيز.
+- لا ANR نظام يمنع نشاط الاختبار من أخذ التركيز، ولا تلاعب بتطبيق HOME لتجاوز الفحص.
 - تبقى الحالات الثلاث نفسها والمهل والـassertions كما هي وتنجح على المحاكي الحقيقي.
 - تبقى 8 حالات JNI/Keystore واختبارات JVM/lint/build ناجحة.
 - لا تغيير في Porcelain/Graphite/Iris أو launcher assets أو DataStore أو منطق الإنتاج.
