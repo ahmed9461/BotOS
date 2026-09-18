@@ -103,4 +103,10 @@ if [[ "$preflight_ready" != '1' ]]; then
 fi
 
 timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell settings put secure show_ime_with_hard_keyboard 1
-timeout -k 15s 8m ./gradlew --no-daemon --console=plain :app:connectedDebugAndroidTest "$@" 2>&1 | tee diagnostics/ui/tests.txt
+# A separate configured startup test uses the non-debuggable, side-by-side owner variant.
+app_task="${BOTOS_DEVICE_APP_TASK:-:app:connectedDebugAndroidTest}"
+case "$app_task" in
+  :app:connectedDebugAndroidTest|:app:connectedOwnerPreviewAndroidTest) ;;
+  *) echo 'Unsupported application device task' >&2; exit 1 ;;
+esac
+timeout -k 15s 8m ./gradlew --no-daemon --no-build-cache --no-configuration-cache --console=plain "$app_task" "$@" 2>&1 | tee diagnostics/ui/tests.txt

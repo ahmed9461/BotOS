@@ -1,0 +1,102 @@
+name: Private owner delivery
+on:
+  push:
+    branches: [feat/telegram-connection]
+    paths: ['delivery/request.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: owner-delivery-${{ github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  request:
+    if: >-
+      github.repository == 'ahmed9461/BotOS' &&
+      github.actor == 'ahmed9461' &&
+      github.ref == 'refs/heads/feat/telegram-connection' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      enabled: ${{ steps.request.outputs.enabled }}
+      source: ${{ steps.request.outputs.source }}
+      run_id: ${{ steps.request.outputs.run_id }}
+      run_number: ${{ steps.request.outputs.run_number }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: request
+        name: Require the exact tested source and a successful integration run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/owner_delivery.py verify-request delivery/request.json
+  package:
+    needs: request
+    if: needs.request.outputs.enabled == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ needs.request.outputs.source }}
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c
+        with:
+          gradle-version: '9.6.1'
+          cache-disabled: true
+          dependency-graph: disabled
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.request.outputs.run_id }}
+          name: TDLib-native-arm64-v8a-${{ needs.request.outputs.run_number }}
+          path: native/output/arm64-v8a
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.request.outputs.run_id }}
+          name: TDLib-native-x86_64-${{ needs.request.outputs.run_number }}
+          path: native/output/x86_64
+      - name: Verify native provenance and prepare build tools without application secrets
+        run: |
+          python3 scripts/check_tdlib_contract.py
+          python3 -m unittest discover -s scripts/tests -v
+          bash scripts/install_android_sdk.sh 'platforms;android-37.0' 'build-tools;36.0.0' > /tmp/botos-owner-sdk.txt 2>&1 || { tail -n 30 /tmp/botos-owner-sdk.txt; exit 1; }
+          gradle --no-daemon --no-build-cache --no-configuration-cache wrapper --gradle-version 9.6.1 --distribution-type bin --gradle-distribution-sha256-sum 9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14
+      - name: Build configured non-debuggable preview, test consent, and seal private delivery
+        env:
+          BOTOS_TELEGRAM_API_ID: ${{ secrets.BOTOS_TELEGRAM_API_ID }}
+          BOTOS_TELEGRAM_API_HASH: ${{ secrets.BOTOS_TELEGRAM_API_HASH }}
+          BOTOS_REQUIRE_TELEGRAM_CONFIG: 'true'
+          BOTOS_DEVICE_APP_TASK: ':app:connectedOwnerPreviewAndroidTest'
+          BOTOS_TESTED_SOURCE: ${{ needs.request.outputs.source }}
+          BOTOS_INTEGRATION_RUN: ${{ needs.request.outputs.run_id }}
+        run: |
+          umask 077
+          python3 scripts/telegram_build_config.py --require
+          ./gradlew --no-daemon --no-build-cache --no-configuration-cache --console=plain -Pbotos.testOwnerPreview=true :app:generateOwnerPreviewBuildConfig
+          python3 scripts/telegram_build_config.py --require --verify-generated app/build/generated
+          ./gradlew --no-daemon --no-build-cache --no-configuration-cache --console=plain -Pbotos.testOwnerPreview=true :app:assembleOwnerPreview :app:assembleOwnerPreviewAndroidTest :app:lintOwnerPreview
+          bash scripts/run_ui_tests.sh -Pbotos.testOwnerPreview=true -Pandroid.testInstrumentationRunnerArguments.class=com.ahmed9461.botos.OwnerBuildSmokeTest -Pandroid.testInstrumentationRunnerArguments.botos.requireConfigured=true
+          python3 scripts/owner_delivery.py package "$RUNNER_TEMP/botos-owner/payload.zip" "$ANDROID_HOME/build-tools/36.0.0"
+          python3 scripts/owner_delivery.py seal "$RUNNER_TEMP/botos-owner/payload.zip" delivery/recipient.pem artifacts/owner-delivery.cms
+      - name: Upload encrypted owner-only payload, never plaintext APK or generated sources
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: BotOS-owner-sealed-${{ github.run_number }}
+          path: |
+            artifacts/owner-delivery.cms
+            artifacts/owner-delivery.sha256
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove generated configuration and private working files
+        if: always()
+        run: rm -rf app/build .gradle/configuration-cache diagnostics "$RUNNER_TEMP/botos-owner"

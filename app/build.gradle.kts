@@ -36,14 +36,29 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = 3
-        versionName = "0.3.0-account"
+        versionName = "0.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["launcherLabel"] = "@string/app_name"
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
+    // Install beside the earlier differently-signed previews; never erase their local library.
+    buildTypes {
+        create("ownerPreview") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".preview"
+            versionNameSuffix = "-preview"
+            isDebuggable = false
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug") // CI smoke only; owner signs final APK offline.
+            matchingFallbacks += listOf("debug") // Exactly the previously-tested native/library variants.
+            manifestPlaceholders["launcherLabel"] = "BotOS Preview"
+        }
+    }
+    testBuildType = if (providers.gradleProperty("botos.testOwnerPreview").orNull == "true") "ownerPreview" else "debug"
     lint { abortOnError = true }
 }
 // Public AGP variant API; generated values never belong in a source artifact or build cache.
