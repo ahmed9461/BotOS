@@ -43,4 +43,19 @@ class AccountRestoreStoreTest {
             assertNotEquals(AccountRestoreStore.defaultFile(context).canonicalFile, file.canonicalFile)
         } finally { job.cancelAndJoin(); file.delete(); marker.delete() }
     }
+
+    @Test fun mainThreadCallerCanPersistWithoutOwningDiskWork() = runBlocking<Unit> {
+        val file = File(context.noBackupFilesDir, "restore-main-test-${UUID.randomUUID()}.preferences_pb")
+        val job = SupervisorJob()
+        try {
+            val store = AccountRestoreStore(file, CoroutineScope(job + Dispatchers.Main.immediate))
+            withContext(Dispatchers.Main.immediate) {
+                assertFalse(store.mayRestore())
+                store.setMayRestore(true)
+                assertTrue(store.mayRestore())
+                store.setMayRestore(false)
+                assertFalse(store.mayRestore())
+            }
+        } finally { job.cancelAndJoin(); file.delete() }
+    }
 }
