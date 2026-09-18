@@ -36,7 +36,6 @@ def validate_request(request: dict, run: dict, changed: list[str]) -> dict[str, 
         raise ValueError('Source lacks a matching successful trusted integration run')
     if type(run.get('run_number')) is not int or run['run_number'] <= 0:
         raise ValueError('Missing integration artifact number')
-    # Only documentation and the request may follow the tested source. No new workflow or code.
     if any(p != 'delivery/request.json' and not p.startswith('docs/') for p in changed):
         raise ValueError('Untested changes follow the requested source')
     return {'enabled': 'true', 'source': source, 'run_id': str(run_id), 'run_number': str(run['run_number'])}
@@ -85,18 +84,52 @@ def seal(source: Path, recipient: Path, destination: Path) -> None:
         tmp.unlink(missing_ok=True)
 
 
+def validate_startup_report(path: Path) -> None:
+    """AGP emits testsuites > testsuite > testcase; JUnit can also emit a flat suite."""
+    root = ET.parse(path).getroot()
+    if root.tag not in {'testsuite', 'testsuites'}:
+        raise ValueError('Unsupported startup report root')
+    for node in root.iter():
+        if node.tag in {'failure', 'error', 'skipped'}:
+            raise ValueError('Startup report contains a failed or skipped result')
+        if node.tag in {'testsuite', 'testsuites'}:
+            if int(node.get('tests', '-1')) != 1 or any(
+                    int(node.get(key, '0')) != 0 for key in ['failures', 'errors', 'skipped']):
+                raise ValueError('Startup report has conflicting result counts')
+    cases = list(root.iter('testcase'))
+    if len(cases) != 1 or cases[0].get('classname') != 'com.ahmed9461.botos.OwnerBuildSmokeTest' or \
+            cases[0].get('name') != 'startupRequiresConsentBeforeCreatingAnySession':
+        raise ValueError('Wrong startup test executed')
+
+
+def locate_owner_apk(outputs: Path) -> Path:
+    """Read the AGP-produced filename; never assume a variant's APK naming convention."""
+    folder = outputs / 'apk/ownerPreview'
+    metadata = json.loads((folder / 'output-metadata.json').read_text(encoding='utf-8'))
+    if (metadata.get('applicationId') != 'com.ahmed9461.botos.preview' or
+            metadata.get('variantName') != 'ownerPreview' or
+            metadata.get('artifactType', {}).get('type') != 'APK'):
+        raise ValueError('Unexpected owner APK metadata')
+    elements = metadata.get('elements', [])
+    if len(elements) != 1 or elements[0].get('type') != 'SINGLE' or elements[0].get('filters') != []:
+        raise ValueError('A single universal owner APK is required')
+    filename = elements[0].get('outputFile', '')
+    if not isinstance(filename, str) or not filename.endswith('.apk') or Path(filename).name != filename or '\\' in filename:
+        raise ValueError('Invalid owner APK output path')
+    apk = folder / filename
+    if apk.resolve().parent != folder.resolve() or not apk.is_file():
+        raise ValueError('Missing or escaping owner APK')
+    return apk
+
+
 def package_owner(destination: Path, build_tools: Path) -> None:
     """Explicit file allowlist. No source trees, BuildConfig, logs, preferences or signing keys."""
-    variant = 'ownerPreview'
+    print('owner_check=startup-report')
     reports = list((ROOT / 'app/build/outputs/androidTest-results/connected').glob('**/TEST-*.xml'))
     if len(reports) != 1:
         raise ValueError('Exactly one configured startup report is required')
-    report = ET.parse(reports[0]).getroot()
-    if any(int(report.get(k, '0')) for k in ['failures', 'errors', 'skipped']) or report.get('tests') != '1':
-        raise ValueError('Configured startup test did not pass')
-    cases = report.findall('testcase')
-    if len(cases) != 1 or cases[0].get('classname') != 'com.ahmed9461.botos.OwnerBuildSmokeTest':
-        raise ValueError('Wrong startup test executed')
+    validate_startup_report(reports[0])
+    print('owner_check=startup-evidence')
     files = list((ROOT / 'app/build/outputs').glob('**/owner-startup.txt'))
     if not files or len({p.read_bytes() for p in files}) != 1:
         raise ValueError('Missing or conflicting original startup evidence')
@@ -105,19 +138,22 @@ def package_owner(destination: Path, build_tools: Path) -> None:
                 'debuggable': 'false', 'consentGate': 'true', 'sessionCreated': 'false', 'accountUsed': 'false'}
     if evidence != expected:
         raise ValueError('Owner startup safety contract failed')
-    apk = ROOT / f'app/build/outputs/apk/{variant}/app-{variant}.apk'
-    if not apk.is_file():
-        raise ValueError('Owner APK is missing')
+    print('owner_check=apk-metadata')
+    apk = locate_owner_apk(ROOT / 'app/build/outputs')
+    print('owner_check=apk-signature')
     subprocess.run([str(build_tools / 'apksigner'), 'verify', '--verbose', str(apk)],
                    check=True, capture_output=True, timeout=60)
+    print('owner_check=apk-alignment')
     subprocess.run([str(build_tools / 'zipalign'), '-c', '-P', '16', '4', str(apk)],
                    check=True, capture_output=True, timeout=60)
+    print('owner_check=apk-content')
     with zipfile.ZipFile(apk) as archive:
         if archive.testzip() is not None:
             raise ValueError('APK is corrupt')
         names = set(archive.namelist())
         if not all(f'lib/{abi}/libtdjsonjava.so' in names for abi in ['arm64-v8a', 'x86_64']):
             raise ValueError('Owner APK is missing a native architecture')
+    print('owner_check=payload-allowlist')
     signer_tool = build_tools / 'lib/apksigner.jar'
     manifest = {'source_commit': os.environ['BOTOS_TESTED_SOURCE'], 'integration_run': os.environ['BOTOS_INTEGRATION_RUN'],
                 'delivery_run': os.environ['GITHUB_RUN_ID'], 'configuration': 'verified', 'account_used': False,
