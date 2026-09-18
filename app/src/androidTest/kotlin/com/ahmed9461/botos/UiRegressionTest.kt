@@ -183,4 +183,14 @@ class UiRegressionTest {
         ui.onNodeWithTag("editor-back").performClick()
         ui.onNodeWithTag("workspace-screen").assertIsDisplayed()
     }
+    @Test fun d_unconfiguredAccountRouteDoesNotAskForCredentials() {
+        ui.onNodeWithTag("nav-appearance").performClick()
+        ui.onNodeWithTag("open-account").performScrollTo().performClick()
+        ui.onNodeWithTag("account-unavailable").assertIsDisplayed()
+        ui.onNodeWithTag("account-input").assertDoesNotExist()
+        screenshot("account-unconfigured-ar")
+        ui.onNodeWithTag("account-back").performClick()
+        ui.onNodeWithTag("nav-appearance").assertIsSelected()
+    }
+
 }

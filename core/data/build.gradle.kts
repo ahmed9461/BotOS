@@ -13,6 +13,7 @@ android {
 kotlin { jvmToolchain(21) }
 dependencies {
     implementation(project(":core:model"))
+    implementation(project(":core:telegram"))
     implementation(libs.datastore.preferences)
     implementation(libs.coroutines.android)
 }

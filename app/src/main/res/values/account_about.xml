@@ -1,0 +1,4 @@
+<resources>
+    <string name="account_about_body">BotOS تطبيق مستقل يستخدم Telegram. المعاينة منفصلة عن حسابك. تتيح النسخة المهيأة ربط الحساب بعد موافقتك؛ عرض محادثات البوتات داخل التطبيق ما زال قيد الاستكمال.</string>
+    <string name="account_version">الإصدار %1$s</string>
+</resources>

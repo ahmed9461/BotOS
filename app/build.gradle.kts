@@ -35,8 +35,8 @@ android {
         applicationId = "com.ahmed9461.botos"
         minSdk = 26
         targetSdk = 37
-        versionCode = 2
-        versionName = "0.2.0-preview"
+        versionCode = 3
+        versionName = "0.3.0-account"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }
@@ -57,6 +57,7 @@ kotlin { jvmToolchain(21) }
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:telegram"))
+    implementation(project(":core:tdlib"))
     implementation(project(":core:data"))
     implementation(project(":core:designsystem"))
     implementation(platform(libs.compose.bom))
@@ -72,6 +73,7 @@ dependencies {
     implementation(libs.navigation3.runtime)
     implementation(libs.coroutines.android)
     debugImplementation(libs.compose.tooling)
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

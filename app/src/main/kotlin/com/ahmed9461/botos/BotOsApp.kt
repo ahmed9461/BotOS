@@ -40,7 +40,7 @@ import com.ahmed9461.botos.model.*
 /** One inset owner; each destination observes live state inside its own composition. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun BotOsApp(vm: WorkspaceViewModel = viewModel()) {
+fun BotOsApp(vm: WorkspaceViewModel = viewModel(), accountVm: AccountViewModel = viewModel()) {
     val shellState by vm.workspace.collectAsStateWithLifecycle()
     val stack = rememberSaveable(saver = listSaver<SnapshotStateList<String>, String>(
         save = { it.toList() }, restore = { it.toMutableStateList() },
@@ -118,7 +118,8 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel()) {
                         when {
                             route == "workspace" -> WorkspaceRoute(vm, { navigate("add") }, { navigate("edit/$it") }, ::openBot)
                             route == "library" -> LibraryRoute(vm, { navigate("add") }, { navigate("edit/$it") })
-                            route == "appearance" -> AppearanceRoute(vm)
+                            route == "appearance" -> AppearanceRoute(vm) { navigate("account") }
+                            route == "account" -> AccountRoute(accountVm, ::back)
                             route == "add" || route.startsWith("edit/") -> EditorRoute(vm, route, ::back)
                         }
                     }
@@ -141,10 +142,10 @@ private fun WorkspaceRoute(vm: WorkspaceViewModel, add: () -> Unit, edit: (Strin
 }
 
 @Composable
-private fun AppearanceRoute(vm: WorkspaceViewModel) {
+private fun AppearanceRoute(vm: WorkspaceViewModel, openAccount: () -> Unit) {
     val state by vm.workspace.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
-    AppearanceScreen(state.workspace.preferences, busy || state.loading || state.failed, vm::setTheme, vm::setMotion)
+    AppearanceScreen(state.workspace.preferences, busy || state.loading || state.failed, vm::setTheme, vm::setMotion, openAccount)
 }
 
 @Composable
@@ -188,4 +189,10 @@ private fun BottomDock(selected: String, onSelect: (String) -> Unit) {
             }
         }
     }
+}
+
+@Composable
+private fun AccountRoute(vm: AccountViewModel, back: () -> Unit) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    AccountScreen(state, back, vm::connect, vm::submit, vm::cancelLogin, vm::retryIdentity, vm::logOut)
 }
