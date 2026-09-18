@@ -4,13 +4,14 @@ from pathlib import Path
 import math
 import shutil
 import struct
+import xml.etree.ElementTree as ET
 
 root = Path(__file__).resolve().parents[1]
 outputs = root / 'app/build/outputs'
 destination = root / 'diagnostics/ui/screenshots'
 destination.mkdir(parents=True, exist_ok=True)
 required = ['appearance-light-ar.png', 'appearance-dark-ar.png', 'appearance-restored-ar.png',
-            'workspace-ar.png', 'keyboard-ar.png', 'library-ar.png', 'editor-ar.png', 'keyboard-gap.txt']
+            'workspace-ar.png', 'keyboard-ar.png', 'library-ar.png', 'editor-ar.png', 'account-unconfigured-ar.png', 'keyboard-gap.txt']
 for name in required:
     matches = [p for p in outputs.rglob(name) if p.is_file() and 'additional_output' in str(p)]
     if len(matches) != 1:
@@ -30,4 +31,8 @@ for name in required:
             raise SystemExit(f'Keyboard gap outside accepted range: {gap}dp')
         print(f'Real keyboard gap: {gap} dp')
     shutil.copyfile(matches[0], destination / name)
-print('All seven device screenshots and keyboard measurement were collected.')
+reports = list((outputs / 'androidTest-results').rglob('TEST-*.xml'))
+suites = [ET.parse(path).getroot() for path in reports]
+assert sum(int(s.get('tests', 0)) for s in suites) == 14, 'Expected 3 regression + 1 account route + 4 account UI + 3 store + 2 live bot UI + 1 owner startup tests'
+assert all(int(s.get(k, 0)) == 0 for s in suites for k in ('failures', 'errors', 'skipped')), 'App device test did not pass'
+print('All eight device screenshots, fourteen app tests and keyboard measurement verified.')

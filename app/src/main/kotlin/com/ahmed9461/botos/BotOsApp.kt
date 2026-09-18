@@ -36,11 +36,12 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
 import com.ahmed9461.botos.design.*
 import com.ahmed9461.botos.model.*
+import com.ahmed9461.botos.telegram.runtime.ConversationState
+import com.ahmed9461.botos.telegram.runtime.ConversationStatus
 
-/** One inset owner; each destination observes live state inside its own composition. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun BotOsApp(vm: WorkspaceViewModel = viewModel()) {
+fun BotOsApp(vm: WorkspaceViewModel = viewModel(), accountVm: AccountViewModel = viewModel()) {
     val shellState by vm.workspace.collectAsStateWithLifecycle()
     val stack = rememberSaveable(saver = listSaver<SnapshotStateList<String>, String>(
         save = { it.toList() }, restore = { it.toMutableStateList() },
@@ -92,7 +93,6 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel()) {
                 }
             }
         }
-        // Union takes the maximum, not the sum. Children must not add IME/navigation padding.
         val safeInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.ime)
         Scaffold(
             modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).windowInsetsPadding(safeInsets),
@@ -100,9 +100,7 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel()) {
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { SnackbarHost(snackbar) },
             bottomBar = {
-                if (!imeVisible && stack.last() in listOf("workspace", "library", "appearance")) {
-                    BottomDock(stack.last(), ::selectRoot)
-                }
+                if (!imeVisible && stack.last() in listOf("workspace", "library", "appearance")) BottomDock(stack.last(), ::selectRoot)
             },
         ) { padding ->
             NavDisplay(
@@ -114,11 +112,11 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel()) {
                 predictivePopTransitionSpec = { fadeIn(tween(motion)) togetherWith fadeOut(tween(motion)) },
                 entryProvider = { route ->
                     NavEntry(route) {
-                        // Do not capture a computed Preferences value here: retained entries need live State reads.
                         when {
-                            route == "workspace" -> WorkspaceRoute(vm, { navigate("add") }, { navigate("edit/$it") }, ::openBot)
+                            route == "workspace" -> WorkspaceRoute(vm, { navigate("add") }, { navigate("edit/$it") }, ::openBot, { navigate("account") })
                             route == "library" -> LibraryRoute(vm, { navigate("add") }, { navigate("edit/$it") })
-                            route == "appearance" -> AppearanceRoute(vm)
+                            route == "appearance" -> AppearanceRoute(vm) { navigate("account") }
+                            route == "account" -> AccountRoute(accountVm, ::back)
                             route == "add" || route.startsWith("edit/") -> EditorRoute(vm, route, ::back)
                         }
                     }
@@ -129,22 +127,39 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel()) {
 }
 
 @Composable
-private fun WorkspaceRoute(vm: WorkspaceViewModel, add: () -> Unit, edit: (String) -> Unit, open: (String) -> Unit) {
+private fun WorkspaceRoute(vm: WorkspaceViewModel, add: () -> Unit, edit: (String) -> Unit, open: (String) -> Unit, account: () -> Unit, live: LiveBotViewModel = viewModel()) {
     val state by vm.workspace.collectAsStateWithLifecycle()
     val selected by vm.selected.collectAsStateWithLifecycle()
     val timeline by vm.timeline.collectAsStateWithLifecycle()
     val draft by vm.draft.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
     val reply = stringResource(R.string.preview_reply)
+    val liveState by live.state.collectAsStateWithLifecycle()
+    val liveDraft by live.draft.collectAsStateWithLifecycle()
+    val username = state.workspace.bots.firstOrNull { it.id == selected }?.username
+    val context = LocalContext.current
+    LaunchedEffect(username) { live.select(username) }
+    DisposableEffect(Unit) { onDispose { live.select(null) } }
     WorkspaceScreen(state, selected, timeline, draft, busy, vm::select, add, edit, vm::remove,
-        vm::move, open, vm::updateDraft, { vm.sendPreview(reply) }, vm::activate)
+        vm::move, open, vm::updateDraft, { vm.sendPreview(reply) }, vm::activate) { bot ->
+        val visibleState = liveState.takeIf { it.username == bot.username }
+            ?: ConversationState(bot.username, ConversationStatus.LOADING)
+        LiveBotPanel(visibleState, liveDraft, live::edit, live::send, live::start, live::activate,
+            live::reload, account, { open(bot.username) }, live::dismiss, {
+                live.confirmedUrl()?.let { url ->
+                    try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                    catch (_: ActivityNotFoundException) { vm.notice(R.string.open_error) }
+                    catch (_: SecurityException) { vm.notice(R.string.open_error) }
+                }
+            })
+    }
 }
 
 @Composable
-private fun AppearanceRoute(vm: WorkspaceViewModel) {
+private fun AppearanceRoute(vm: WorkspaceViewModel, openAccount: () -> Unit) {
     val state by vm.workspace.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
-    AppearanceScreen(state.workspace.preferences, busy || state.loading || state.failed, vm::setTheme, vm::setMotion)
+    AppearanceScreen(state.workspace.preferences, busy || state.loading || state.failed, vm::setTheme, vm::setMotion, openAccount)
 }
 
 @Composable
@@ -188,4 +203,10 @@ private fun BottomDock(selected: String, onSelect: (String) -> Unit) {
             }
         }
     }
+}
+
+@Composable
+private fun AccountRoute(vm: AccountViewModel, back: () -> Unit) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    AccountScreen(state, back, vm::connect, vm::submit, vm::cancelLogin, vm::retryIdentity, vm::logOut)
 }

@@ -22,7 +22,12 @@ cleanup() {
   set +e
   if [[ "$device_ready" == '1' ]]; then
     timeout -k 2s 8s adb -s "$ANDROID_SERIAL" pull /sdcard/Android/data/com.ahmed9461.botos/files/ui-evidence diagnostics/ui/ > diagnostics/ui/evidence-pull.txt 2>&1
-    timeout -k 2s 5s adb -s "$ANDROID_SERIAL" logcat -d -s AndroidRuntime > diagnostics/ui/runtime.txt 2>&1
+    timeout -k 2s 5s adb -s "$ANDROID_SERIAL" logcat -d -s AndroidRuntime BotOSUiTest > diagnostics/ui/runtime.txt 2>&1
+    if [[ "$status" != '0' ]]; then
+      timeout -k 2s 5s adb -s "$ANDROID_SERIAL" shell dumpsys window > diagnostics/ui/failure-window.txt 2>&1
+      timeout -k 2s 5s adb -s "$ANDROID_SERIAL" shell dumpsys power > diagnostics/ui/failure-power.txt 2>&1
+      timeout -k 2s 5s adb -s "$ANDROID_SERIAL" exec-out screencap -p > diagnostics/ui/failure-screen.png
+    fi
     timeout -k 2s 5s adb -s "$ANDROID_SERIAL" emu kill >/dev/null 2>&1
   fi
   if [[ -n "$emulator_pid" ]]; then kill "$emulator_pid" >/dev/null 2>&1; fi
@@ -54,7 +59,54 @@ while (( SECONDS < deadline )); do
   sleep 2
 done
 if [[ "$device_ready" != '1' ]]; then echo 'Emulator did not boot within 240 seconds'; tail -n 80 diagnostics/ui/emulator.txt; exit 1; fi
-printf 'Device booted. Running actual UI regression tests.\n'
-timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell input keyevent 82
+printf 'Device booted. Waiting for a stable unlocked foreground before actual UI regression tests.\n'
+# These settings belong only to this disposable, non-secure emulator.
+if [[ "$(timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell getprop ro.kernel.qemu | tr -d '\r')" != '1' ]]; then
+  echo 'Refusing to change screen settings on a non-emulator device.' >&2
+  exit 1
+fi
+timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell settings put system screen_off_timeout 1800000
+timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell svc power stayon true
+timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell input keyevent KEYCODE_WAKEUP
+timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell wm dismiss-keyguard
+
+# Do not synthesize MENU/HOME input or manipulate a launcher package here. On the fresh
+# Google APIs image the HOME intent can resolve through the SDK setup wrapper even while
+# NexusLauncher is the real resumed/focused activity. We only require the disposable
+# emulator to reach a focused, resumed, ANR-free state before instrumentation takes over.
+preflight_ready=0
+preflight_deadline=$((SECONDS + 20))
+while (( SECONDS < preflight_deadline )); do
+  activity_state="$(timeout -k 2s 6s adb -s "$ANDROID_SERIAL" shell dumpsys activity activities 2>/dev/null || true)"
+  window_state="$(timeout -k 2s 6s adb -s "$ANDROID_SERIAL" shell dumpsys window 2>/dev/null || true)"
+  last_anr="$(timeout -k 2s 6s adb -s "$ANDROID_SERIAL" shell dumpsys window lastanr 2>/dev/null || true)"
+  resumed="$(grep -Em1 'topResumedActivity=|ResumedActivity:' <<<"$activity_state" || true)"
+  focused="$(grep -m1 'mCurrentFocus=' <<<"$window_state" || true)"
+  if [[ -n "$resumed" && -n "$focused" && "$focused" != *'mCurrentFocus=null'* && "$last_anr" == *'<no ANR has occurred since boot>'* ]]; then
+    {
+      printf 'resumed=%s\n' "$resumed"
+      printf 'focused=%s\n' "$focused"
+      printf 'last_anr=none\n'
+    } > diagnostics/ui/preflight.txt
+    preflight_ready=1
+    break
+  fi
+  sleep 1
+done
+if [[ "$preflight_ready" != '1' ]]; then
+  timeout -k 2s 5s adb -s "$ANDROID_SERIAL" shell dumpsys activity activities > diagnostics/ui/preflight-activity.txt 2>&1 || true
+  timeout -k 2s 5s adb -s "$ANDROID_SERIAL" shell dumpsys window > diagnostics/ui/preflight-window.txt 2>&1 || true
+  timeout -k 2s 5s adb -s "$ANDROID_SERIAL" shell dumpsys window lastanr > diagnostics/ui/preflight-lastanr.txt 2>&1 || true
+  timeout -k 2s 5s adb -s "$ANDROID_SERIAL" exec-out screencap -p > diagnostics/ui/preflight-screen.png || true
+  echo 'Emulator did not reach an ANR-free focused/resumed state before UI tests.' >&2
+  exit 1
+fi
+
 timeout -k 2s 10s adb -s "$ANDROID_SERIAL" shell settings put secure show_ime_with_hard_keyboard 1
-timeout -k 15s 8m ./gradlew --no-daemon --console=plain :app:connectedDebugAndroidTest "$@" 2>&1 | tee diagnostics/ui/tests.txt
+# A separate configured startup test uses the non-debuggable, side-by-side owner variant.
+app_task="${BOTOS_DEVICE_APP_TASK:-:app:connectedDebugAndroidTest}"
+case "$app_task" in
+  :app:connectedDebugAndroidTest|:app:connectedOwnerPreviewAndroidTest) ;;
+  *) echo 'Unsupported application device task' >&2; exit 1 ;;
+esac
+timeout -k 15s 8m ./gradlew --no-daemon --no-build-cache --no-configuration-cache --console=plain "$app_task" "$@" 2>&1 | tee diagnostics/ui/tests.txt

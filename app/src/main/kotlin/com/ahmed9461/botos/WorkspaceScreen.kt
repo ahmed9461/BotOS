@@ -37,6 +37,7 @@ internal fun WorkspaceScreen(
     onSelect: (String) -> Unit, onAdd: () -> Unit, onEdit: (String) -> Unit, onDelete: (String) -> Unit,
     onMove: (String, Int) -> Unit, onOpenTelegram: (String) -> Unit,
     onDraft: (String) -> Unit, onSend: () -> Unit, onAction: (ActionTicket) -> Unit,
+    liveContent: @Composable (SavedBot) -> Unit,
 ) {
     val bots = snapshot.workspace.bots
     val selected = bots.firstOrNull { it.id == selectedId }
@@ -49,7 +50,7 @@ internal fun WorkspaceScreen(
         if (imeVisible) {
             Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(selected?.title ?: stringResource(R.string.preview), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Text(stringResource(R.string.local_preview), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(if (isPreview) R.string.local_preview else R.string.live_workspace), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             ScreenHeader(stringResource(R.string.workspace), stringResource(R.string.space_intro)) {
@@ -86,38 +87,29 @@ internal fun WorkspaceScreen(
                             MessageTimelineView(timeline, onAction, modifier = Modifier.weight(1f))
                             Composer(draft, onDraft, onSend)
                         } else {
-                            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), modifier = Modifier.fillMaxWidth()) {
-                                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            BotBadge(selected.title)
-                                            Spacer(Modifier.width(14.dp))
-                                            Column(Modifier.weight(1f)) {
-                                                Text(selected.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                                                Text("@${selected.username}", style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Ltr), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            }
-                                            Box {
-                                                IconButton(onClick = { menu = true }) { BotGlyph(Glyph.MORE, stringResource(R.string.more)) }
-                                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                                    DropdownMenuItem(text = { Text(stringResource(R.string.edit_bot)) }, enabled = !busy, onClick = { menu = false; onEdit(selected.id) })
-                                                    DropdownMenuItem(text = { Text(stringResource(R.string.move_up)) }, enabled = !busy && bots.indexOf(selected) > 0, onClick = { menu = false; onMove(selected.id, -1) })
-                                                    DropdownMenuItem(text = { Text(stringResource(R.string.move_down)) }, enabled = !busy && bots.indexOf(selected) < bots.lastIndex, onClick = { menu = false; onMove(selected.id, 1) })
-                                                    DropdownMenuItem(text = { Text(stringResource(R.string.remove)) }, enabled = !busy, onClick = { menu = false; removeId = selected.id })
-                                                }
-                                            }
+                            if (!imeVisible) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface,
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        BotBadge(selected.title)
+                                        Spacer(Modifier.width(14.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(selected.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                                            Text("@${selected.username}", style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Ltr), color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
-                                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                                        Text(stringResource(R.string.waiting_connection), style = MaterialTheme.typography.titleMedium)
-                                        Text(stringResource(R.string.no_connection), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        Button(onClick = { onOpenTelegram(selected.username) }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp), shape = RoundedCornerShape(16.dp)) {
-                                            Text(stringResource(R.string.open_telegram)); Spacer(Modifier.width(8.dp)); BotGlyph(Glyph.LINK, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                                        Box {
+                                            IconButton(onClick = { menu = true }) { BotGlyph(Glyph.MORE, stringResource(R.string.more)) }
+                                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                                DropdownMenuItem(text = { Text(stringResource(R.string.edit_bot)) }, enabled = !busy, onClick = { menu = false; onEdit(selected.id) })
+                                                DropdownMenuItem(text = { Text(stringResource(R.string.move_up)) }, enabled = !busy && bots.indexOf(selected) > 0, onClick = { menu = false; onMove(selected.id, -1) })
+                                                DropdownMenuItem(text = { Text(stringResource(R.string.move_down)) }, enabled = !busy && bots.indexOf(selected) < bots.lastIndex, onClick = { menu = false; onMove(selected.id, 1) })
+                                                DropdownMenuItem(text = { Text(stringResource(R.string.remove)) }, enabled = !busy, onClick = { menu = false; removeId = selected.id })
+                                            }
                                         }
                                     }
                                 }
-                                Text(stringResource(R.string.bookmark_notice), style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp))
                             }
+                            liveContent(selected)
                         }
                     }
                 }

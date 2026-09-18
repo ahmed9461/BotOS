@@ -69,7 +69,7 @@ internal fun BotEditor(bot: SavedBot?, busy: Boolean, onBack: () -> Unit, onSave
 }
 
 @Composable
-internal fun AppearanceScreen(preferences: Preferences, disabled: Boolean, onTheme: (ThemeMode) -> Unit, onMotion: (Boolean) -> Unit) {
+internal fun AppearanceScreen(preferences: Preferences, disabled: Boolean, onTheme: (ThemeMode) -> Unit, onMotion: (Boolean) -> Unit, onAccount: () -> Unit) {
     var aboutOpen by rememberSaveable { mutableStateOf(false) }
     val largeText = LocalDensity.current.fontScale > 1.35f
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).testTag("appearance-screen")) {
@@ -103,12 +103,25 @@ internal fun AppearanceScreen(preferences: Preferences, disabled: Boolean, onThe
             }
         }
         Spacer(Modifier.height(24.dp))
+        Surface(onClick = onAccount, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.testTag("open-account")) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                BotGlyph(Glyph.LINK, tint = MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(stringResource(R.string.account_title), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.account_entry_hint), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
         Surface(onClick = { aboutOpen = true }, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 BotGlyph(Glyph.SPACE, tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(stringResource(R.string.about), style = MaterialTheme.typography.titleSmall)
-                    Text(stringResource(R.string.refinement_version), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.account_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 BotGlyph(Glyph.LINK, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -117,7 +130,7 @@ internal fun AppearanceScreen(preferences: Preferences, disabled: Boolean, onThe
             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp, vertical = 18.dp))
     }
     if (aboutOpen) AlertDialog(onDismissRequest = { aboutOpen = false }, title = { Text(stringResource(R.string.about)) },
-        text = { Text(stringResource(R.string.about_body)) }, confirmButton = { TextButton(onClick = { aboutOpen = false }) { Text(stringResource(R.string.close)) } })
+        text = { Text(stringResource(R.string.account_about_body)) }, confirmButton = { TextButton(onClick = { aboutOpen = false }) { Text(stringResource(R.string.close)) } })
 }
 
 @Composable

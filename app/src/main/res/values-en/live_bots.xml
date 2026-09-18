@@ -1,0 +1,19 @@
+<resources>
+    <string name="live_workspace">Bot conversation</string>
+    <string name="live_sign_in_hint">Connect your Telegram account to use this bot inside BotOS.</string>
+    <string name="live_not_bot">This username does not resolve to an available Telegram bot. Check it in your library.</string>
+    <string name="live_loading_error">The conversation could not be opened. Check your connection and try again.</string>
+    <string name="live_connected">Telegram conversation</string>
+    <string name="live_start">Start bot</string>
+    <string name="live_message_hint">Write a message…</string>
+    <string name="live_uncertain">No confirmation arrived. Check the conversation before trying again to avoid sending twice.</string>
+    <string name="live_stale">These buttons changed. Use the buttons currently displayed.</string>
+    <string name="live_unsupported">This action is not supported in this build, or the message is invalid.</string>
+    <string name="live_reload_needed">Reload the conversation before continuing.</string>
+    <string name="live_send_error">The request could not be completed. Check your connection and conversation before trying again.</string>
+    <string name="live_open_link">Open this link?</string>
+    <string name="live_open">Open</string>
+    <string name="delivery_pending">Sending…</string>
+    <string name="delivery_failed">Not sent</string>
+    <string name="delivery_sent">Sent</string>
+</resources>

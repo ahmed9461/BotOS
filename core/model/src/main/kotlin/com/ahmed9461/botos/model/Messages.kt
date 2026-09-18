@@ -21,9 +21,11 @@ sealed interface Block {
     data class Buttons(override val id: String, val buttons: List<BotButton>) : Block
     data class Unsupported(override val id: String) : Block
 }
+enum class DeliveryState { NONE, PENDING, SENT, FAILED }
 data class BotMessage(
     val id: Long, val chat: ChatKey, val revision: Long,
     val blocks: List<Block>, val outgoing: Boolean = false,
+    val delivery: DeliveryState = DeliveryState.NONE,
 )
 data class ActionTicket(val chat: ChatKey, val messageId: Long, val revision: Long, val buttonId: String)
 
