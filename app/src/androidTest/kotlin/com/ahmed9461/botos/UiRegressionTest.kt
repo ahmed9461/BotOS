@@ -6,18 +6,19 @@ import android.os.Build
 import android.os.LocaleList
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.platform.io.PlatformTestStorageRegistry
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 
 /** Real activity, real DataStore and IME. No mocked preference response or fixed keyboard height. */
 @RunWith(AndroidJUnit4::class)
@@ -53,9 +54,12 @@ class UiRegressionTest {
         ui.waitForIdle()
         val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
             ?: error("Device screenshot unavailable")
-        val directory = File(ui.activity.getExternalFilesDir(null), "ui-evidence").apply { mkdirs() }
-        File(directory, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        bitmap.recycle()
+        try {
+            // The Gradle test runner retrieves this before uninstalling the tested application.
+            PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
+                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) { "Screenshot compression failed" }
+            }
+        } finally { bitmap.recycle() }
     }
 
     @Test fun a_preferencesUpdateInPlaceAndSurviveRecreation() {
@@ -103,12 +107,16 @@ class UiRegressionTest {
         val gap = root.height - inset - composer.bottom
         val density = ui.activity.resources.displayMetrics.density
         val gapDp = gap / density
-        val directory = File(ui.activity.getExternalFilesDir(null), "ui-evidence").apply { mkdirs() }
-        File(directory, "keyboard-gap.txt").writeText("rootHeight=${root.height}\nimeBottom=$inset\ncomposerBottom=${composer.bottom}\ngapDp=$gapDp\n")
+        PlatformTestStorageRegistry.getInstance().openOutputFile("keyboard-gap.txt").bufferedWriter().use {
+            it.write("rootHeight=${root.height}\nimeBottom=$inset\ncomposerBottom=${composer.bottom}\ngapDp=$gapDp\n")
+        }
         screenshot("keyboard-ar")
         assertTrue("Composer overlaps IME or leaves an excessive gap: $gapDp dp", gapDp >= -2f && gapDp <= 12f)
         ui.onNodeWithTag("send-preview").performClick()
-        ui.onNodeWithTag("composer-input").assertTextEquals("")
+        // The placeholder remains visible after a successful clear; inspect editable content only.
+        ui.onNodeWithTag("composer-input").assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(""))
+        )
     }
 
     @Test fun c_libraryAndEditorNavigationPreserveInputOnRecreation() {

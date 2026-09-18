@@ -53,6 +53,8 @@ jobs:
         run: ./gradlew --no-daemon :core:model:test :core:telegram:test :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest
       - name: Real UI regression tests and screenshots
         run: bash scripts/run_ui_tests.sh
+      - name: Verify collected UI evidence
+        run: python3 scripts/check_device_evidence.py
       - name: APK integrity
         run: |
           mkdir -p artifacts
@@ -85,5 +87,6 @@ jobs:
             app/build/reports/lint-results-debug.*
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
+            app/build/outputs/*additional_output/
             diagnostics/
           retention-days: 14
