@@ -1,1 +1,5 @@
-{"enabled": false}
+{
+  "enabled": true,
+  "source_commit": "2c4df40869341c8fa27339644ef51e732ebb7a4c",
+  "integration_run": 35401145354
+}
