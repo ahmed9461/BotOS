@@ -48,4 +48,32 @@ class LiveBotPanelTest {
         ui.onNodeWithTag("live-start").performClick()
         ui.runOnIdle { assertEquals(1, starts) }
     }
+    @Test fun messageButtonsRenderBelowCompactBubbleAndMetadataStaysInsideBubble() {
+        val key = ChatKey("fixture", "100")
+        val message = BotMessage(
+            id = 7,
+            chat = key,
+            revision = 3,
+            blocks = listOf(
+                Block.Paragraph("text", "/start"),
+                Block.Buttons("actions", listOf(
+                    BotButton("inline/0/0", "فتح", ActionPayload.Callback("AQID")),
+                    BotButton("inline/0/1", "إعدادات", ActionPayload.Callback("BAUG")),
+                )),
+            ),
+            outgoing = true,
+            delivery = DeliveryState.SENT,
+            date = 1_789_000_000,
+        )
+        render(ConversationState("fixture_bot", ConversationStatus.READY, MessageTimeline(key, listOf(message))))
+        val bubble = ui.onNodeWithTag("message-bubble-7").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val buttons = ui.onNodeWithTag("message-buttons-7-actions").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val root = ui.onRoot().fetchSemanticsNode().boundsInRoot
+        ui.onNodeWithTag("message-meta-7").assertIsDisplayed()
+        ui.runOnIdle {
+            assertTrue("Buttons must be outside and below the message bubble", buttons.top >= bubble.bottom - 1f)
+            assertTrue("Outgoing bubble must not consume the full chat width", bubble.width < root.width * 0.9f)
+        }
+    }
+
 }
