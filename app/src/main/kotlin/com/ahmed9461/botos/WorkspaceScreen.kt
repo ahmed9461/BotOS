@@ -3,10 +3,8 @@ package com.ahmed9461.botos
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDirection
@@ -43,72 +40,97 @@ internal fun WorkspaceScreen(
     val selected = bots.firstOrNull { it.id == selectedId }
     val isPreview = selected == null
     val imeVisible = WindowInsets.isImeVisible
-    var menu by remember(selectedId) { mutableStateOf(false) }
+    var actionMenu by remember(selectedId) { mutableStateOf(false) }
+    var switchMenu by remember { mutableStateOf(false) }
     var removeId by rememberSaveable { mutableStateOf<String?>(null) }
     val holder = rememberSaveableStateHolder()
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).testTag("workspace-screen")) {
-        if (imeVisible) {
-            Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(selected?.title ?: stringResource(R.string.preview), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Text(stringResource(if (isPreview) R.string.local_preview else R.string.live_workspace), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        } else {
-            ScreenHeader(stringResource(R.string.workspace), stringResource(R.string.space_intro)) {
-                FilledTonalIconButton(onClick = onAdd, enabled = !snapshot.loading && !snapshot.failed && !busy,
-                    modifier = Modifier.size(48.dp).testTag("add-bot"), shape = RoundedCornerShape(17.dp),
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                    BotGlyph(Glyph.ADD, stringResource(R.string.add_bot), tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-            }
-        }
+    val horizontalPadding = if (selected == null) 20.dp else 12.dp
+
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = horizontalPadding).testTag("workspace-screen"),
+    ) {
         when {
             snapshot.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(Modifier.size(28.dp))
             }
-            snapshot.failed -> InfoCard(stringResource(R.string.storage_error))
+            snapshot.failed -> {
+                if (!imeVisible) ScreenHeader(stringResource(R.string.workspace), stringResource(R.string.space_intro))
+                InfoCard(stringResource(R.string.storage_error))
+            }
             else -> {
-                if (!imeVisible) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
-                        item(key = WorkspaceViewModel.PREVIEW) {
-                            BotTab(stringResource(R.string.preview), isPreview, { onSelect(WorkspaceViewModel.PREVIEW) }, Modifier.testTag("preview-tab"))
-                        }
-                        items(bots, key = { it.id }) { bot ->
-                            BotTab(bot.title, selected?.id == bot.id, { onSelect(bot.id) }, Modifier.testTag("bot-tab-${bot.id}"))
+                if (selected != null) {
+                    CompactBotHeader(
+                        bot = selected,
+                        bots = bots,
+                        busy = busy,
+                        imeVisible = imeVisible,
+                        switchExpanded = switchMenu,
+                        onSwitchExpanded = { switchMenu = it },
+                        actionExpanded = actionMenu,
+                        onActionExpanded = { actionMenu = it },
+                        onSelect = onSelect,
+                        onAdd = onAdd,
+                        onEdit = onEdit,
+                        onMove = onMove,
+                        onRemove = { removeId = selected.id },
+                    )
+                } else if (imeVisible) {
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 40.dp).testTag("preview-mode"),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(stringResource(R.string.preview), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        BotSwitcher(
+                            bots = bots,
+                            selectedId = null,
+                            expanded = switchMenu,
+                            onExpanded = { switchMenu = it },
+                            onSelect = onSelect,
+                        )
+                    }
+                } else {
+                    ScreenHeader(stringResource(R.string.workspace), stringResource(R.string.space_intro)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            BotSwitcher(
+                                bots = bots,
+                                selectedId = null,
+                                expanded = switchMenu,
+                                onExpanded = { switchMenu = it },
+                                onSelect = onSelect,
+                            )
+                            FilledTonalIconButton(
+                                onClick = onAdd,
+                                enabled = !busy,
+                                modifier = Modifier.size(44.dp).testTag("add-bot"),
+                                shape = RoundedCornerShape(15.dp),
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                ),
+                            ) {
+                                BotGlyph(
+                                    Glyph.ADD,
+                                    stringResource(R.string.add_bot),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
+                            }
                         }
                     }
                 }
+
                 holder.SaveableStateProvider(selected?.id ?: WorkspaceViewModel.PREVIEW) {
                     Column(Modifier.fillMaxSize()) {
                         if (isPreview) {
                             if (!imeVisible) {
-                                Text(stringResource(R.string.preview_notice), modifier = Modifier.padding(start = 3.dp, bottom = 6.dp),
-                                    style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    stringResource(R.string.preview_notice),
+                                    modifier = Modifier.padding(start = 3.dp, bottom = 6.dp).testTag("preview-mode"),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                             MessageTimelineView(timeline, onAction, modifier = Modifier.weight(1f))
                             Composer(draft, onDraft, onSend)
                         } else {
-                            if (!imeVisible) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface,
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-                                Column(Modifier.padding(12.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        BotBadge(selected.title)
-                                        Spacer(Modifier.width(14.dp))
-                                        Column(Modifier.weight(1f)) {
-                                            Text(selected.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                                            Text("@${selected.username}", style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Ltr), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-                                        Box {
-                                            IconButton(onClick = { menu = true }) { BotGlyph(Glyph.MORE, stringResource(R.string.more)) }
-                                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                                DropdownMenuItem(text = { Text(stringResource(R.string.edit_bot)) }, enabled = !busy, onClick = { menu = false; onEdit(selected.id) })
-                                                DropdownMenuItem(text = { Text(stringResource(R.string.move_up)) }, enabled = !busy && bots.indexOf(selected) > 0, onClick = { menu = false; onMove(selected.id, -1) })
-                                                DropdownMenuItem(text = { Text(stringResource(R.string.move_down)) }, enabled = !busy && bots.indexOf(selected) < bots.lastIndex, onClick = { menu = false; onMove(selected.id, 1) })
-                                                DropdownMenuItem(text = { Text(stringResource(R.string.remove)) }, enabled = !busy, onClick = { menu = false; removeId = selected.id })
-                                            }
-                                        }
-                                    }
-                                }
-                            }
                             liveContent(selected)
                         }
                     }
@@ -116,11 +138,205 @@ internal fun WorkspaceScreen(
             }
         }
     }
+
     removeId?.let { target ->
-        AlertDialog(onDismissRequest = { removeId = null }, title = { Text(stringResource(R.string.remove)) },
+        AlertDialog(
+            onDismissRequest = { removeId = null },
+            title = { Text(stringResource(R.string.remove)) },
             text = { Text(stringResource(R.string.remove_confirm)) },
-            confirmButton = { TextButton(onClick = { onDelete(target); holder.removeState(target); removeId = null }, enabled = !busy) { Text(stringResource(R.string.remove)) } },
-            dismissButton = { TextButton(onClick = { removeId = null }) { Text(stringResource(R.string.cancel)) } })
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete(target)
+                        holder.removeState(target)
+                        removeId = null
+                    },
+                    enabled = !busy,
+                ) { Text(stringResource(R.string.remove)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { removeId = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun CompactBotHeader(
+    bot: SavedBot,
+    bots: List<SavedBot>,
+    busy: Boolean,
+    imeVisible: Boolean,
+    switchExpanded: Boolean,
+    onSwitchExpanded: (Boolean) -> Unit,
+    actionExpanded: Boolean,
+    onActionExpanded: (Boolean) -> Unit,
+    onSelect: (String) -> Unit,
+    onAdd: () -> Unit,
+    onEdit: (String) -> Unit,
+    onMove: (String, Int) -> Unit,
+    onRemove: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth()
+            .padding(top = if (imeVisible) 2.dp else 7.dp, bottom = 5.dp)
+            .heightIn(min = 46.dp)
+            .testTag("compact-bot-header"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        CompactBotBadge(bot.title)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                bot.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "@${bot.username}",
+                style = MaterialTheme.typography.labelSmall.copy(textDirection = TextDirection.Ltr),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (!imeVisible) {
+            FilledTonalIconButton(
+                onClick = onAdd,
+                enabled = !busy,
+                modifier = Modifier.size(38.dp).testTag("add-bot"),
+                shape = RoundedCornerShape(13.dp),
+            ) {
+                BotGlyph(Glyph.ADD, stringResource(R.string.add_bot), modifier = Modifier.size(18.dp))
+            }
+        }
+        BotSwitcher(
+            bots = bots,
+            selectedId = bot.id,
+            expanded = switchExpanded,
+            onExpanded = onSwitchExpanded,
+            onSelect = onSelect,
+        )
+        Box {
+            IconButton(
+                onClick = { onActionExpanded(true) },
+                enabled = !busy,
+                modifier = Modifier.size(38.dp).testTag("bot-actions"),
+            ) {
+                BotGlyph(Glyph.MORE, stringResource(R.string.more), modifier = Modifier.size(19.dp))
+            }
+            DropdownMenu(
+                expanded = actionExpanded,
+                onDismissRequest = { onActionExpanded(false) },
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.edit_bot)) },
+                    onClick = { onActionExpanded(false); onEdit(bot.id) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.move_up)) },
+                    enabled = bots.indexOf(bot) > 0,
+                    onClick = { onActionExpanded(false); onMove(bot.id, -1) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.move_down)) },
+                    enabled = bots.indexOf(bot) < bots.lastIndex,
+                    onClick = { onActionExpanded(false); onMove(bot.id, 1) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.remove)) },
+                    onClick = { onActionExpanded(false); onRemove() },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BotSwitcher(
+    bots: List<SavedBot>,
+    selectedId: String?,
+    expanded: Boolean,
+    onExpanded: (Boolean) -> Unit,
+    onSelect: (String) -> Unit,
+) {
+    Box {
+        IconButton(
+            onClick = { onExpanded(!expanded) },
+            modifier = Modifier.size(38.dp).testTag("bot-switcher"),
+        ) {
+            BotGlyph(
+                if (expanded) Glyph.UP else Glyph.DOWN,
+                stringResource(R.string.switch_bot),
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpanded(false) },
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.preview)) },
+                onClick = {
+                    onExpanded(false)
+                    onSelect(WorkspaceViewModel.PREVIEW)
+                },
+                trailingIcon = {
+                    if (selectedId == null) {
+                        Text("✓", color = MaterialTheme.colorScheme.primary)
+                    }
+                },
+                modifier = Modifier.testTag("bot-switch-item-preview"),
+            )
+            bots.forEach { saved ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(saved.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                "@${saved.username}",
+                                style = MaterialTheme.typography.labelSmall.copy(textDirection = TextDirection.Ltr),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                        }
+                    },
+                    onClick = {
+                        onExpanded(false)
+                        onSelect(saved.id)
+                    },
+                    trailingIcon = {
+                        if (selectedId == saved.id) {
+                            Text("✓", color = MaterialTheme.colorScheme.primary)
+                        }
+                    },
+                    modifier = Modifier.testTag("bot-switch-item-${saved.id}"),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactBotBadge(title: String) {
+    Surface(
+        shape = RoundedCornerShape(13.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        modifier = Modifier.size(38.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                title.take(1),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
     }
 }
 
@@ -132,18 +348,6 @@ internal fun ScreenHeader(title: String, subtitle: String, trailing: @Composable
             Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.width(12.dp)); trailing()
-    }
-}
-
-@Composable
-private fun BotTab(title: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(shape = RoundedCornerShape(16.dp), color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-        Box(modifier.selectable(selected, role = Role.Tab, onClick = onClick).heightIn(min = 48.dp).widthIn(max = 190.dp)
-            .padding(horizontal = 18.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
-            Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge,
-                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
-        }
     }
 }
 
