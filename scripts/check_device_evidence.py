@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require genuine collected screenshots and the real-IME measurement before APK publication."""
+"""Require genuine screenshots and real-IME measurements before APK publication."""
 from pathlib import Path
 import math
 import shutil
@@ -11,7 +11,8 @@ outputs = root / 'app/build/outputs'
 destination = root / 'diagnostics/ui/screenshots'
 destination.mkdir(parents=True, exist_ok=True)
 required = ['appearance-light-ar.png', 'appearance-dark-ar.png', 'appearance-restored-ar.png',
-            'workspace-ar.png', 'keyboard-ar.png', 'library-ar.png', 'editor-ar.png', 'account-unconfigured-ar.png', 'keyboard-gap.txt']
+            'workspace-ar.png', 'keyboard-ar.png', 'library-ar.png', 'editor-ar.png', 'account-unconfigured-ar.png',
+            'rich-chat-light-ar.png', 'rich-chat-dark-ar.png', 'rich-chat-switcher-ar.png', 'keyboard-gap.txt']
 for name in required:
     matches = [p for p in outputs.rglob(name) if p.is_file() and 'additional_output' in str(p)]
     if len(matches) != 1:
@@ -33,6 +34,6 @@ for name in required:
     shutil.copyfile(matches[0], destination / name)
 reports = list((outputs / 'androidTest-results').rglob('TEST-*.xml'))
 suites = [ET.parse(path).getroot() for path in reports]
-assert sum(int(s.get('tests', 0)) for s in suites) == 16, 'Expected 3 regression + 1 account route + 4 account UI + 3 store + 4 live/chat UI + 1 owner startup tests'
+assert sum(int(s.get('tests', 0)) for s in suites) == 19, 'Expected all 16 existing app tests plus 3 rich chat regressions'
 assert all(int(s.get(k, 0)) == 0 for s in suites for k in ('failures', 'errors', 'skipped')), 'App device test did not pass'
-print('All eight device screenshots, sixteen app tests and keyboard measurement verified.')
+print('All eleven device screenshots, nineteen app tests and keyboard measurement verified.')

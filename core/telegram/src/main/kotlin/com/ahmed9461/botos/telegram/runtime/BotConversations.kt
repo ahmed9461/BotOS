@@ -6,6 +6,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.*
 
 enum class ConversationStatus { SIGN_IN, LOADING, READY, NOT_A_BOT, FAILED }
@@ -73,6 +75,28 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
                         if (updateChat == chatId && updates.trySend(update).isFailure) updates.close(TdFailure(FailureKind.BUSY))
                     }
                     coroutineScope {
+                        // Read-only hydration is scoped to this view. Never automatically retry a
+                        // revision or let a late result replace an edited/deleted message.
+                        val requestedFull = mutableSetOf<Pair<Long, Long>>()
+                        val fullPermits = Semaphore(2)
+                        fun hydrateRich() {
+                            for (message in active.reducer.incompleteRich()) {
+                                if (requestedFull.size >= 400) break
+                                if (!requestedFull.add(message.id to message.revision)) continue
+                                launch {
+                                    try {
+                                        fullPermits.withPermit {
+                                            if (!valid(active)) return@withPermit
+                                            val full = owner.rpc.request(TdJson.command("getFullRichMessage") {
+                                                put("chat_id", chatId); put("message_id", message.id)
+                                            })
+                                            if (valid(active) && active.reducer.completeRich(message.id, message.revision, full)) publish(active)
+                                        }
+                                    } catch (cancelled: CancellationException) { throw cancelled }
+                                    catch (_: Exception) { /* Partial content stays explicit; manual reload can retry. */ }
+                                }
+                            }
+                        }
                         owner.rpc.request(TdJson.command("openChat") { put("chat_id", chatId) })
                         openedChat = chatId
                         val keyboardVersion = active.reducer.keyboardVersion
@@ -94,6 +118,7 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
                                     if (!valid(active)) break
                                     active.reducer.update(update)
                                     publish(active)
+                                    hydrateRich()
                                 }
                             } catch (cancelled: CancellationException) { throw cancelled }
                             catch (_: Exception) {
@@ -106,6 +131,7 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
                         if (valid(active) && !active.faulted) {
                             change(active) { it.copy(status = ConversationStatus.READY, timeline = active.reducer.timeline(), keyboard = active.reducer.keyboard) }
                         }
+                        hydrateRich()
                         consumer.join()
                     }
                 } catch (cancelled: CancellationException) { throw cancelled }

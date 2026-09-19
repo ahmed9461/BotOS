@@ -35,8 +35,8 @@ android {
         applicationId = "com.ahmed9461.botos"
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["launcherLabel"] = "@string/app_name"
     }
@@ -45,7 +45,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
-    // Install beside the earlier differently-signed previews; never erase their local library.
+    // Stable identity for owner updates. Final signing must match the installed owner preview.
     buildTypes {
         create("ownerPreview") {
             initWith(getByName("release"))
@@ -54,14 +54,14 @@ android {
             isDebuggable = false
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("debug") // CI smoke only; owner signs final APK offline.
-            matchingFallbacks += listOf("debug") // Exactly the previously-tested native/library variants.
+            matchingFallbacks += listOf("debug")
             manifestPlaceholders["launcherLabel"] = "BotOS Preview"
         }
     }
     testBuildType = if (providers.gradleProperty("botos.testOwnerPreview").orNull == "true") "ownerPreview" else "debug"
     lint { abortOnError = true }
 }
-// Public AGP variant API; generated values never belong in a source artifact or build cache.
+// Generated values never belong in a source artifact or build cache.
 androidComponents.onVariants { variant ->
     val fields = checkNotNull(variant.buildConfigFields)
     fields.put("TELEGRAM_CONFIGURED", BuildConfigField("boolean", telegramConfigured, null))

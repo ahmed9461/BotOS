@@ -26,4 +26,6 @@
     <string name="rich_media_map">Location</string>
     <string name="rich_media_embedded">Embedded content</string>
     <string name="rich_media_chat_link">Chat</string>
+    <string name="rich_partial">Some parts of this message have not loaded yet.</string>
+    <string name="rich_media_limited">Opening this attachment is not available here yet.</string>
 </resources>

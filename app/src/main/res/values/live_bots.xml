@@ -26,4 +26,6 @@
     <string name="rich_media_map">موقع</string>
     <string name="rich_media_embedded">محتوى مضمن</string>
     <string name="rich_media_chat_link">محادثة</string>
+    <string name="rich_partial">بعض أجزاء الرسالة لم تُحمَّل بعد.</string>
+    <string name="rich_media_limited">فتح هذا المرفق غير متاح هنا بعد.</string>
 </resources>
