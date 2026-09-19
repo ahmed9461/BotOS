@@ -135,8 +135,8 @@ class UiRegressionTest {
 
     @Test fun b_composerTracksRealImeWithoutAnEmptyDock() {
         ui.onNodeWithTag("nav-workspace").performClick()
-        enabled("preview-tab")
-        ui.onNodeWithTag("preview-tab").performClick()
+        ui.onNodeWithTag("preview-mode").assertIsDisplayed()
+        ui.onNodeWithTag("bot-switcher").assertIsDisplayed()
         screenshot("workspace-ar")
         windowReady()
         // Exercise the real pointer/focus path. Do not inject text before the input session exists.
