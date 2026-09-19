@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.ahmed9461.botos.data.StoreSnapshot
 import com.ahmed9461.botos.design.BotOsTheme
 import com.ahmed9461.botos.model.*
 import com.ahmed9461.botos.telegram.runtime.ConversationState
@@ -74,6 +75,42 @@ class LiveBotPanelTest {
             assertTrue("Buttons must be outside and below the message bubble", buttons.top >= bubble.bottom - 1f)
             assertTrue("Outgoing bubble must not consume the full chat width", bubble.width < root.width * 0.9f)
         }
+    }
+
+    @Test fun workspaceUsesDropdownSwitcherInsteadOfPermanentBotTabs() {
+        val bots = listOf(
+            SavedBot("one", "first_bot", "الأول"),
+            SavedBot("two", "second_bot", "الثاني"),
+        )
+        var selected = "one"
+        val key = ChatKey("fixture", "100")
+        ui.setContent {
+            BotOsTheme(ThemeMode.LIGHT, true) {
+                WorkspaceScreen(
+                    snapshot = StoreSnapshot(Workspace(bots = bots)),
+                    selectedId = selected,
+                    timeline = MessageTimeline(key),
+                    draft = "",
+                    busy = false,
+                    onSelect = { selected = it },
+                    onAdd = {},
+                    onEdit = {},
+                    onDelete = {},
+                    onMove = { _, _ -> },
+                    onOpenTelegram = {},
+                    onDraft = {},
+                    onSend = {},
+                    onAction = {},
+                    liveContent = { Box(Modifier.fillMaxSize().testTag("fixture-live-content")) },
+                )
+            }
+        }
+        ui.onNodeWithTag("compact-bot-header").assertIsDisplayed()
+        ui.onNodeWithTag("bot-switcher").assertIsDisplayed()
+        ui.onNodeWithTag("bot-tab-one").assertDoesNotExist()
+        ui.onNodeWithTag("bot-switcher").performClick()
+        ui.onNodeWithTag("bot-switch-item-two").assertIsDisplayed().performClick()
+        ui.runOnIdle { assertEquals("two", selected) }
     }
 
 }
