@@ -132,6 +132,7 @@ private fun StyledTextView(value: StyledText, modifier: Modifier = Modifier, sty
     val annotated = remember(value, primary, primaryContainer, surfaceVariant, onSurfaceVariant, revealed) {
         buildAnnotatedString {
             value.spans.forEach { span ->
+                val actionId = span.actionId
                 val decorations = buildList {
                     if (RichMark.UNDERLINE in span.marks || span.url != null) add(TextDecoration.Underline)
                     if (RichMark.STRIKETHROUGH in span.marks) add(TextDecoration.LineThrough)
@@ -158,8 +159,8 @@ private fun StyledTextView(value: StyledText, modifier: Modifier = Modifier, sty
                     if (RichMark.SPOILER in span.marks && !revealed) {
                         // Hidden text is absent from the semantics/selection tree until revealed.
                         withLink(LinkAnnotation.Clickable("reveal") { revealed = true }) { append("••••") }
-                    } else if (span.actionId != null) {
-                        withLink(LinkAnnotation.Clickable(span.actionId) { activate(span.actionId) }) { append(span.text) }
+                    } else if (actionId != null) {
+                        withLink(LinkAnnotation.Clickable(actionId) { activate(actionId) }) { append(span.text) }
                     } else append(span.text)
                 }
             }
