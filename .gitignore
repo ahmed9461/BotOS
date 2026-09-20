@@ -18,3 +18,11 @@ captures/
 *.session-journal
 *.log
 __pycache__/
+
+# Private owner signing material never belongs in source control.
+*.p12
+*.pfx
+*.key
+*.encrypted.pem
+*Recovery-Key*
+*Private-Key-Backup*

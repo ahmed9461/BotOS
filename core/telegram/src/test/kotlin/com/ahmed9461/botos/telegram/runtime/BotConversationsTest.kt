@@ -13,6 +13,8 @@ class BotConversationsTest {
     private class Rpc : TdRpc {
         val calls = CopyOnWriteArrayList<JsonObject>()
         val observers = CopyOnWriteArrayList<(JsonObject) -> Unit>()
+        var fullReply: (suspend () -> JsonObject)? = null
+        var richHistory: JsonObject? = null
         var bot = true
         var owner = 42L
         var historyGate: CompletableDeferred<Unit>? = null
@@ -28,8 +30,9 @@ class BotConversationsTest {
                 "getUser" -> TdJson.command("user") { put("id", 77); put("type", TdJson.command(if (bot) "userTypeBot" else "userTypeRegular")) }
                 "getChatHistory" -> {
                     historyGate?.await()
-                    TdJson.command("messages") { put("messages", buildJsonArray { add(wireMessage(chatId = command.number("chat_id")!!, markup = wireKeyboard(true))) }) }
+                    TdJson.command("messages") { put("messages", buildJsonArray { add(richHistory ?: wireMessage(chatId = command.number("chat_id")!!, markup = wireKeyboard(true))) }) }
                 }
+                "getFullRichMessage" -> fullReply?.invoke() ?: throw TdFailure(FailureKind.REMOTE)
                 "sendMessage" -> sending?.invoke() ?: wireMessage(-1, command.number("chat_id")!!, outgoing = true, sending = "messageSendingStatePending")
                 "sendBotStartMessage" -> wireMessage(-2, command.number("chat_id")!!, outgoing = true, sending = "messageSendingStatePending")
                 "getCallbackQueryAnswer" -> TdJson.command("callbackQueryAnswer") { put("text", "تم"); put("url", "") }
@@ -161,6 +164,33 @@ class BotConversationsTest {
             assertEquals(ConversationIssue.OVERFLOW, f.live.state.value.issue)
             assertFalse(f.live.send("must not send"))
             assertFalse(f.rpc.calls.any { it.type() == "sendMessage" })
+        }
+    }
+    @Test fun partialRichMessagesAreFetchedOnceAndRemainBoundToTheSelectedChat() = runBlocking<Unit> {
+        Fixture().use { f ->
+            val full = TdJson.command("richMessage") {
+                put("is_full", true)
+                put("is_rtl", true)
+                put("blocks", buildJsonArray {
+                    add(TdJson.command("pageBlockParagraph") {
+                        put("text", TdJson.command("richTextPlain") {
+                            put("text", "كامل")
+                        })
+                    })
+                })
+            }
+            val partial = JsonObject(full.toMutableMap().apply { put("is_full", JsonPrimitive(false)) })
+            f.rpc.richHistory = TdJson.command("message") {
+                put("id", 50); put("chat_id", 100); put("content", TdJson.command("messageRichMessage") { put("message", partial) })
+            }
+            f.rpc.fullReply = { full }
+            f.connect(); f.open()
+            withTimeout(5_000) { f.live.state.first { it.timeline?.messages?.singleOrNull()?.isFull == true } }
+            assertEquals(1, f.rpc.calls.count { it.type() == "getFullRichMessage" })
+            assertFalse(f.rpc.calls.any { it.type() == "sendMessage" || it.type() == "sendBotStartMessage" })
+            f.rpc.richHistory = null
+            f.open("beta_bot")
+            assertEquals("مرحبا 🌚", (f.live.state.value.timeline!!.messages.single().blocks.first() as Block.Paragraph).text)
         }
     }
 }

@@ -24,7 +24,7 @@ class OwnerPackagingTest(unittest.TestCase):
         self.report = self.outputs / 'androidTest-results/connected/ownerPreview/TEST-device.xml'
         self.report.parent.mkdir(parents=True); self.report.write_text(NESTED)
         self.folder = self.outputs / 'apk/ownerPreview'; self.folder.mkdir(parents=True)
-        self.metadata = {'applicationId': 'com.ahmed9461.botos.preview', 'variantName': 'ownerPreview',
+        self.metadata = {'applicationId': 'com.ahmed9461.botos.app', 'variantName': 'ownerPreview',
                          'artifactType': {'type': 'APK'}, 'elements': [{'type': 'SINGLE', 'filters': [], 'outputFile': 'custom-name.apk'}]}
         self.save_metadata()
         self.apk = self.folder/'custom-name.apk'
@@ -32,10 +32,18 @@ class OwnerPackagingTest(unittest.TestCase):
             for abi in ['arm64-v8a', 'x86_64']: archive.writestr(f'lib/{abi}/libtdjsonjava.so', b'synthetic library')
         self.evidence = self.outputs/'connected_additional_output/owner-startup.txt'
         self.evidence.parent.mkdir(parents=True)
-        self.evidence.write_text('configured=true\napplicationId=com.ahmed9461.botos.preview\ndebuggable=false\nconsentGate=true\nsessionCreated=false\naccountUsed=false\n')
+        self.evidence.write_text('configured=true\napplicationId=com.ahmed9461.botos.app\ndebuggable=false\nconsentGate=true\nsessionCreated=false\naccountUsed=false\n')
         self.tools = self.root/'tools'; (self.tools/'lib').mkdir(parents=True)
         (self.tools/'lib/apksigner.jar').write_bytes(b'synthetic tool')
         self.destination = self.root/'private/payload.zip'
+        self.update_report = self.root/'diagnostics/owner-update.json'
+        self.update_report.parent.mkdir(parents=True)
+        self.update_report.write_text(json.dumps({
+            'application_id': 'com.ahmed9461.botos.app', 'in_place_reinstall': 'passed',
+            'private_file_preserved': True, 'preferences_preserved': True,
+            'uninstalled_between_installs': False, 'same_version_reinstall': True,
+            'signer': 'temporary CI', 'owner_final_signer_device_test': False, 'account_used': False,
+        }))
     def save_metadata(self, metadata=None):
         (self.folder/'output-metadata.json').write_text(json.dumps(self.metadata if metadata is None else metadata))
     def package(self, process=None):
@@ -85,7 +93,7 @@ class OwnerPackagingTest(unittest.TestCase):
         run=self.package()
         self.assertEqual(['apksigner','zipalign'],[Path(c.args[0][0]).name for c in run.call_args_list])
         with zipfile.ZipFile(self.destination) as archive:
-            self.assertEqual({'BotOS-0.3.0-preview-ci.apk','tools/apksigner.jar','owner-startup.txt','owner-startup.xml','provenance.json'},set(archive.namelist()))
+            self.assertEqual({'BotOS-0.4.0-preview-ci.apk','tools/apksigner.jar','owner-startup.txt','owner-startup.xml','owner-update.json','provenance.json'},set(archive.namelist()))
             manifest=json.loads(archive.read('provenance.json'));self.assertFalse(manifest['account_used']);self.assertFalse(manifest['debuggable'])
     def test_configuration_conflict_and_extra_report_never_create_payload(self):
         self.evidence.write_text(self.evidence.read_text().replace('configured=true','configured=false'))
@@ -101,3 +109,11 @@ class OwnerPackagingTest(unittest.TestCase):
     def test_malformed_report_is_not_treated_as_a_pass(self):
         self.report.write_text('<testsuites')
         with self.assertRaises(ET.ParseError): module.validate_startup_report(self.report)
+
+    def test_missing_or_failed_update_evidence_blocks_package(self):
+        self.update_report.write_text('{"in_place_reinstall":"failed"}')
+        with self.assertRaises(ValueError): self.package()
+        self.assertFalse(self.destination.exists())
+        self.update_report.unlink()
+        with self.assertRaises(FileNotFoundError): self.package()
+        self.assertFalse(self.destination.exists())

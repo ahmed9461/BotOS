@@ -14,6 +14,18 @@
     <string name="live_open_link">Open this link?</string>
     <string name="live_open">Open</string>
     <string name="delivery_pending">Sending…</string>
-    <string name="delivery_failed">Not sent</string>
+    <string name="delivery_failed">Failed</string>
     <string name="delivery_sent">Sent</string>
+    <string name="switch_bot">Switch bot</string>
+    <string name="rich_media_photo">Photo</string>
+    <string name="rich_media_video">Video</string>
+    <string name="rich_media_animation">Animation</string>
+    <string name="rich_media_audio">Audio</string>
+    <string name="rich_media_voice">Voice message</string>
+    <string name="rich_media_document">File</string>
+    <string name="rich_media_map">Location</string>
+    <string name="rich_media_embedded">Embedded content</string>
+    <string name="rich_media_chat_link">Chat</string>
+    <string name="rich_partial">Some parts of this message have not loaded yet.</string>
+    <string name="rich_media_limited">Opening this attachment is not available here yet.</string>
 </resources>

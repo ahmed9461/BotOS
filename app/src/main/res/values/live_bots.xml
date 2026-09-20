@@ -13,7 +13,19 @@
     <string name="live_send_error">تعذر إكمال الطلب. راجع الاتصال والمحادثة قبل المحاولة مجددًا.</string>
     <string name="live_open_link">فتح هذا الرابط؟</string>
     <string name="live_open">فتح</string>
-    <string name="delivery_pending">جارٍ الإرسال…</string>
-    <string name="delivery_failed">تعذر الإرسال</string>
+    <string name="delivery_pending">جارٍ…</string>
+    <string name="delivery_failed">فشل</string>
     <string name="delivery_sent">أُرسلت</string>
+    <string name="switch_bot">تبديل البوت</string>
+    <string name="rich_media_photo">صورة</string>
+    <string name="rich_media_video">فيديو</string>
+    <string name="rich_media_animation">صورة متحركة</string>
+    <string name="rich_media_audio">مقطع صوتي</string>
+    <string name="rich_media_voice">رسالة صوتية</string>
+    <string name="rich_media_document">ملف</string>
+    <string name="rich_media_map">موقع</string>
+    <string name="rich_media_embedded">محتوى مضمن</string>
+    <string name="rich_media_chat_link">محادثة</string>
+    <string name="rich_partial">بعض أجزاء الرسالة لم تُحمَّل بعد.</string>
+    <string name="rich_media_limited">فتح هذا المرفق غير متاح هنا بعد.</string>
 </resources>
