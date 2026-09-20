@@ -49,13 +49,13 @@ android {
     buildTypes {
         create("ownerPreview") {
             initWith(getByName("release"))
-            applicationIdSuffix = ".preview"
+            applicationIdSuffix = ".app"
             versionNameSuffix = "-preview"
             isDebuggable = false
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("debug") // CI smoke only; owner signs final APK offline.
             matchingFallbacks += listOf("debug")
-            manifestPlaceholders["launcherLabel"] = "BotOS Preview"
+            manifestPlaceholders["launcherLabel"] = "BotOS"
         }
     }
     testBuildType = if (providers.gradleProperty("botos.testOwnerPreview").orNull == "true") "ownerPreview" else "debug"

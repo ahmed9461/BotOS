@@ -25,7 +25,7 @@ class OwnerBuildSmokeTest {
         val requireConfigured = InstrumentationRegistry.getArguments().getString("botos.requireConfigured") == "true"
         assertEquals("Unexpected build configuration mode", requireConfigured, BuildConfig.TELEGRAM_CONFIGURED)
         if (requireConfigured) {
-            assertEquals("com.ahmed9461.botos.preview", context.packageName)
+            assertEquals("com.ahmed9461.botos.app", context.packageName)
             assertEquals(0, context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE)
         }
         // This smoke validates fresh startup, not a configuration change midway through it.

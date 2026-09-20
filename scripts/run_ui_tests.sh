@@ -110,3 +110,9 @@ case "$app_task" in
   *) echo 'Unsupported application device task' >&2; exit 1 ;;
 esac
 timeout -k 15s 8m ./gradlew --no-daemon --no-build-cache --no-configuration-cache --console=plain "$app_task" "$@" 2>&1 | tee diagnostics/ui/tests.txt
+
+# Only the private owner pipeline requests an in-place package replacement check.
+if [[ "${BOTOS_VERIFY_INPLACE_UPDATE:-false}" == 'true' ]]; then
+  [[ "$app_task" == ':app:connectedOwnerPreviewAndroidTest' ]] || { echo 'Owner variant required' >&2; exit 1; }
+  python3 scripts/verify_inplace_update.py
+fi

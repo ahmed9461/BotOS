@@ -34,6 +34,6 @@ for name in required:
     shutil.copyfile(matches[0], destination / name)
 reports = list((outputs / 'androidTest-results').rglob('TEST-*.xml'))
 suites = [ET.parse(path).getroot() for path in reports]
-assert sum(int(s.get('tests', 0)) for s in suites) == 19, 'Expected all 16 existing app tests plus 3 rich chat regressions'
+assert sum(int(s.get('tests', 0)) for s in suites) == 20, 'Expected all 19 existing app tests plus 1 update-persistence probe'
 assert all(int(s.get(k, 0)) == 0 for s in suites for k in ('failures', 'errors', 'skipped')), 'App device test did not pass'
-print('All eleven device screenshots, nineteen app tests and keyboard measurement verified.')
+print('All eleven device screenshots, twenty app tests and keyboard measurement verified.')

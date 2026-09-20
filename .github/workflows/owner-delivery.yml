@@ -1,7 +1,7 @@
 name: Private owner delivery
 on:
   push:
-    branches: [feat/telegram-connection]
+    branches: [feat/rich-chat-polish]
     paths: ['delivery/request.json']
   workflow_dispatch:
 permissions:
@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.repository == 'ahmed9461/BotOS' &&
       github.actor == 'ahmed9461' &&
-      github.ref == 'refs/heads/feat/telegram-connection' &&
+      github.ref == 'refs/heads/feat/rich-chat-polish' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -77,6 +77,7 @@ jobs:
           BOTOS_TELEGRAM_API_HASH: ${{ secrets.BOTOS_TELEGRAM_API_HASH }}
           BOTOS_REQUIRE_TELEGRAM_CONFIG: 'true'
           BOTOS_DEVICE_APP_TASK: ':app:connectedOwnerPreviewAndroidTest'
+          BOTOS_VERIFY_INPLACE_UPDATE: 'true'
           BOTOS_TESTED_SOURCE: ${{ needs.request.outputs.source }}
           BOTOS_INTEGRATION_RUN: ${{ needs.request.outputs.run_id }}
         run: |
