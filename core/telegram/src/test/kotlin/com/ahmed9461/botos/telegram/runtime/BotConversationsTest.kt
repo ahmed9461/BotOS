@@ -169,8 +169,15 @@ class BotConversationsTest {
     @Test fun partialRichMessagesAreFetchedOnceAndRemainBoundToTheSelectedChat() = runBlocking<Unit> {
         Fixture().use { f ->
             val full = TdJson.command("richMessage") {
-                put("is_full", true); put("is_rtl", true); put("blocks", buildJsonArray {
-                    add(TdJson.command("pageBlockParagraph") { put("text", TdJson.command("richTextPlain") { put("text", "كامل") }) })
+                put("is_full", true)
+                put("is_rtl", true)
+                put("blocks", buildJsonArray {
+                    add(TdJson.command("pageBlockParagraph") {
+                        put("text", TdJson.command("richTextPlain") {
+                            put("text", "كامل")
+                        })
+                    })
+                })
             }
             val partial = JsonObject(full.toMutableMap().apply { put("is_full", JsonPrimitive(false)) })
             f.rpc.richHistory = TdJson.command("message") {
