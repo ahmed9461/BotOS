@@ -22,6 +22,7 @@ data class ConversationState(
     val notice: String? = null,
     val proposedUrl: String? = null,
     val generation: Long = 0,
+    val pending: PendingReply? = null,
 ) {
     override fun toString() = "ConversationState(status=$status, busy=$busy, issue=$issue)"
 }
@@ -32,7 +33,7 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
     private val engineScope = CoroutineScope(scope.coroutineContext + engineDispatcher)
     private data class Selection(val username: String?, val serial: Long)
     private class Binding(val selection: Selection, val account: ReadyAccount, val chatId: Long, val botId: Long,
-        val reducer: BotMessageReducer) {
+        val reducer: BotMessageReducer, val drafts: PendingReplies) {
         @Volatile var faulted = false
         val operation = Mutex()
     }
@@ -41,7 +42,6 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
     private val _state = MutableStateFlow(ConversationState())
     val state: StateFlow<ConversationState> = _state.asStateFlow()
     @Volatile private var binding: Binding? = null
-
     init {
         engineScope.launch {
             combine(account.ready, selected) { owner, selection -> owner to selection }.collectLatest { (owner, selection) ->
@@ -68,15 +68,19 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
                         _state.update { if (current(owner, selection)) ConversationState(selection.username, ConversationStatus.NOT_A_BOT, generation = selection.serial) else it }; return@collectLatest
                     }
                     val key = ChatKey("${owner.userId}:${owner.generation}", "$chatId:${selection.serial}")
-                    val active = Binding(selection, owner, chatId, botId, BotMessageReducer(key, chatId))
+                    val period = try {
+                        val option = owner.rpc.request(TdJson.command("getOption") { put("name", "pending_text_message_period") })
+                        if (option.type() == "optionValueInteger") option.number("value")?.coerceIn(0, 120)?.times(1_000) ?: 0L else 0L
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { 0L }
+                    if (!current(owner, selection)) return@collectLatest
+                    val active = Binding(selection, owner, chatId, botId, BotMessageReducer(key, chatId), PendingReplies(key, chatId, period))
                     binding = active
                     subscription = owner.rpc.observeUpdates { update ->
                         val updateChat = update.obj("message")?.number("chat_id") ?: update.number("chat_id")
                         if (updateChat == chatId && updates.trySend(update).isFailure) updates.close(TdFailure(FailureKind.BUSY))
                     }
                     coroutineScope {
-                        // Read-only hydration is scoped to this view. Never automatically retry a
-                        // revision or let a late result replace an edited/deleted message.
                         val requestedFull = mutableSetOf<Pair<Long, Long>>()
                         val fullPermits = Semaphore(2)
                         fun hydrateRich() {
@@ -93,7 +97,7 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
                                             if (valid(active) && active.reducer.completeRich(message.id, message.revision, full)) publish(active)
                                         }
                                     } catch (cancelled: CancellationException) { throw cancelled }
-                                    catch (_: Exception) { /* Partial content stays explicit; manual reload can retry. */ }
+                                    catch (_: Exception) { /* Keep partial content explicit; manual reload can retry. */ }
                                 }
                             }
                         }
@@ -111,11 +115,12 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
                             val keyboard = owner.rpc.request(TdJson.command("getMessage") { put("chat_id", chatId); put("message_id", keyboardId) })
                             if (valid(active) && active.reducer.keyboardVersion == keyboardVersion) active.reducer.setKeyboard(keyboard)
                         }
-                        // Apply queued updates after snapshots; early edits of unseen messages must not be lost.
                         val consumer = launch(start = CoroutineStart.UNDISPATCHED) {
                             try {
                                 for (update in updates) {
                                     if (!valid(active)) break
+                                    if (update.type() == "updateNewMessage") update.obj("message")?.let(active.drafts::incoming)
+                                    active.drafts.update(update)
                                     active.reducer.update(update)
                                     publish(active)
                                     hydrateRich()
@@ -132,7 +137,13 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
                             change(active) { it.copy(status = ConversationStatus.READY, timeline = active.reducer.timeline(), keyboard = active.reducer.keyboard) }
                         }
                         hydrateRich()
-                        consumer.join()
+                        val expiry = launch {
+                            while (isActive && valid(active)) {
+                                delay(250)
+                                if (active.drafts.expire()) publish(active)
+                            }
+                        }
+                        try { consumer.join() } finally { expiry.cancel() }
                     }
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) {
@@ -143,14 +154,13 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
                     openedChat?.let { id ->
                         withContext(NonCancellable) {
                             try { owner.rpc.request(TdJson.command("closeChat") { put("chat_id", id) }, timeoutMillis = 2_000) }
-                            catch (_: Exception) { /* View bookkeeping only, never a send or logout retry. */ }
+                            catch (_: Exception) { /* No message-send or logout retry. */ }
                         }
                     }
                 }
             }
         }
     }
-
     fun select(username: String?) {
         val normalized = username?.let(BotNames::normalize)
         if (selected.value.username == normalized) return
@@ -181,6 +191,14 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
             put("bot_user_id", active.botId); put("chat_id", active.chatId); put("parameter", "")
         })
         if (valid(active)) { active.reducer.add(message); publish(active) }
+    }
+    suspend fun stopPending(expectedDraftId: Long): Boolean = perform { active ->
+        val pending = active.drafts.value
+        if (pending == null || pending.draftId != expectedDraftId || !pending.canStop) throw TdFailure(FailureKind.WRONG_STATE)
+        active.account.rpc.request(TdJson.command("stopPendingMessage") {
+            put("chat_id", active.chatId); put("topic_id", JsonNull); put("draft_id", expectedDraftId)
+        })
+        if (valid(active)) { active.drafts.stop(expectedDraftId); publish(active) }
     }
     suspend fun activate(ticket: ActionTicket): Boolean = perform { active ->
         val button = active.reducer.resolve(ticket) ?: throw TdFailure(FailureKind.WRONG_STATE)
@@ -218,7 +236,7 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
         if (valid(active)) { active.reducer.add(message); publish(active) }
     }
     private fun publish(active: Binding) {
-        change(active) { it.copy(timeline = active.reducer.timeline(), keyboard = active.reducer.keyboard) }
+        change(active) { it.copy(timeline = active.reducer.timeline(), keyboard = active.reducer.keyboard, pending = active.drafts.value) }
     }
     private fun change(active: Binding, transform: (ConversationState) -> ConversationState) {
         _state.update { if (valid(active) && it.generation == active.selection.serial) transform(it) else it }

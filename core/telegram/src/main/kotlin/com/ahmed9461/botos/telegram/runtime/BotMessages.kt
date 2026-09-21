@@ -24,11 +24,12 @@ internal object BotMessageAdapter {
         val content = raw.obj("content")
         val adapter = RichAdapter()
         val rich = content?.takeIf { it.type() == "messageRichMessage" }?.obj("message")
-        val blocks = when (content?.type()) {
+        val protected = raw.obj("self_destruct_type") != null || (raw.decimal("self_destruct_in") ?: 0.0) > 0.0
+        val blocks = if (protected) listOf(Block.Unsupported("protected-media")) else when (content?.type()) {
             "messageText" -> listOf(Block.Paragraph("text", content.obj("text")?.string("text").orEmpty()))
             "messageRichMessage" -> adapter.blocks(rich?.array("blocks") ?: JsonArray(emptyList()), "rich", 0)
                 .ifEmpty { listOf(Block.Unsupported("rich-empty")) }
-            else -> buildList {
+            else -> content?.let(StandardMediaAdapter::blocks) ?: buildList {
                 add(Block.Unsupported("content"))
                 content?.obj("caption")?.string("text")?.takeIf { it.isNotBlank() }?.let { add(Block.Paragraph("caption", it)) }
             }
@@ -53,7 +54,6 @@ internal object BotMessageAdapter {
         val id = raw.number("id")?.takeIf { it != 0L } ?: return null
         return BotMessage(id, key, revision, buttons(markup, inline = false), date = raw.number("date") ?: 0L)
     }
-
     private fun buttonPayload(type: JsonObject, inline: Boolean, fallbackText: String): ActionPayload = when {
         inline && type.type() == "inlineKeyboardButtonTypeCallback" -> ActionPayload.Callback(type.string("data"))
         inline && type.type() == "inlineKeyboardButtonTypeUrl" -> safeBotUrl(type.string("url"))?.let(ActionPayload::OpenUrl) ?: ActionPayload.Unsupported
@@ -90,7 +90,6 @@ internal object BotMessageAdapter {
         private var remainingText = ContentLimits.MAX_TEXT
         private var richDepth = 0
         private var actionSequence = 0
-
         fun blocks(items: JsonArray, path: String, depth: Int): List<Block> {
             if (depth >= ContentLimits.MAX_DEPTH) return listOf(Block.Unsupported("$path-depth"))
             val result = mutableListOf<Block>()
@@ -184,7 +183,6 @@ internal object BotMessageAdapter {
                 else -> listOf(Block.Unsupported(id))
             }
         }
-
         private fun richButton(button: JsonObject, id: String): BotButton? {
             if (button.type() != "inlineButton") return null
             val label = rich(button.obj("text")).plainText().take(256)
