@@ -25,7 +25,7 @@ internal object BotMessageAdapter {
         val adapter = RichAdapter()
         val rich = content?.takeIf { it.type() == "messageRichMessage" }?.obj("message")
         val protected = raw.obj("self_destruct_type") != null || (raw.decimal("self_destruct_in") ?: 0.0) > 0.0
-        val blocks = if (protected) listOf(Block.Unsupported("protected-media")) else when (content?.type()) {
+        val blocks = (if (protected) listOf(Block.Unsupported("protected-media")) else when (content?.type()) {
             "messageText" -> listOf(Block.Paragraph("text", content.obj("text")?.string("text").orEmpty()))
             "messageRichMessage" -> adapter.blocks(rich?.array("blocks") ?: JsonArray(emptyList()), "rich", 0)
                 .ifEmpty { listOf(Block.Unsupported("rich-empty")) }
@@ -33,7 +33,7 @@ internal object BotMessageAdapter {
                 add(Block.Unsupported("content"))
                 content?.obj("caption")?.string("text")?.takeIf { it.isNotBlank() }?.let { add(Block.Paragraph("caption", it)) }
             }
-        }.toMutableList()
+        }).toMutableList()
         val markup = raw.obj("reply_markup")
         if (markup?.type() == "replyMarkupInlineKeyboard") blocks += buttons(markup, inline = true)
         val outgoing = raw.flag("is_outgoing")
