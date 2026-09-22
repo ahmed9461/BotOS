@@ -206,6 +206,7 @@ private fun StickerImage(media: DecodedMedia.Sticker, animate: Boolean, modifier
     } }, update = { it.setImageDrawable(drawable) }, modifier = modifier)
 }
 
+@androidx.annotation.RequiresApi(28)
 @Composable
 private fun AnimatedPicture(media: DecodedMedia.Picture) {
     val animate = LocalMotionMillis.current != 0
