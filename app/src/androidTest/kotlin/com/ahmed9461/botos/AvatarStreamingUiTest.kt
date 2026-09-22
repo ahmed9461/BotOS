@@ -5,9 +5,10 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.os.LocaleList
 import androidx.activity.ComponentActivity
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -48,7 +49,10 @@ class AvatarStreamingUiTest {
         ui.setContent {
             BotOsTheme(ThemeMode.DARK, true) {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { content() }
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background,
+                        contentColor = MaterialTheme.colorScheme.onBackground) {
+                        Box(Modifier.systemBarsPadding()) { content() }
+                    }
                 }
             }
         }

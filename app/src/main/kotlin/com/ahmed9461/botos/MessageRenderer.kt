@@ -303,7 +303,13 @@ internal fun RenderBlock(block: Block, message: BotMessage, onAction: (ActionTic
                     style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr))
             }
         }
-        is Block.Media -> MediaCard(block.info, message.forceRtl)
+        is Block.Media -> {
+            val reference = MediaReference(message.chat, message.id, message.revision, block.id)
+            if (com.ahmed9461.botos.media.ReceivedMediaItem(reference, block.info)) {
+                if (!block.info.caption.isBlank()) StyledTextView(block.info.caption,
+                    style = MaterialTheme.typography.bodySmall, forceRtl = message.forceRtl)
+            } else MediaCard(block.info, message.forceRtl)
+        }
         is Block.Gallery -> Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
             Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 block.children.take(ContentLimits.MAX_MEDIA).forEach { RenderBlock(it, message, onAction, depth + 1) }

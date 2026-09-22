@@ -147,6 +147,7 @@ private fun WorkspaceRoute(vm: WorkspaceViewModel, add: () -> Unit, edit: (Strin
         vm::move, open, vm::updateDraft, { vm.sendPreview(reply) }, vm::activate) { bot ->
         val visibleState = liveState.takeIf { it.username == bot.username }
             ?: ConversationState(bot.username, ConversationStatus.LOADING)
+        com.ahmed9461.botos.media.ReceivedMediaHost(visibleState.timeline?.chat) {
         LiveBotPanel(visibleState, liveDraft, live::edit, live::send, live::start, live::activate,
             live::reload, account, { open(bot.username) }, live::dismiss, {
                 live.confirmedUrl()?.let { url ->
@@ -157,6 +158,7 @@ private fun WorkspaceRoute(vm: WorkspaceViewModel, add: () -> Unit, edit: (Strin
             }, onStopPending = { draftId ->
                 visibleState.timeline?.chat?.let { chat -> live.stopPending(chat, draftId) }
             })
+        }
     }
 }
 

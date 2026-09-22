@@ -1,5 +1,6 @@
 package com.ahmed9461.botos.telegram.runtime
 
+import com.ahmed9461.botos.model.ChatKey
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Semaphore
@@ -64,6 +65,12 @@ class TelegramFiles(private val account: AccountCoordinator, scope: CoroutineSco
     fun key(fileId: Int): RemoteFileKey? {
         val owner = account.ready.value ?: return null
         return if (fileId > 0) RemoteFileKey(owner.userId, owner.generation, fileId) else null
+    }
+    /** Reject the brief interval in which UI still holds the previous account's timeline. */
+    fun keyForChat(chat: ChatKey, fileId: Int): RemoteFileKey? {
+        val owner = account.ready.value ?: return null
+        if (chat.account != "${owner.userId}:${owner.generation}") return null
+        return fileId.takeIf { it > 0 }?.let { RemoteFileKey(owner.userId, owner.generation, it) }
     }
     fun isCurrent(key: RemoteFileKey): Boolean {
         val owner = account.ready.value ?: return false

@@ -1,0 +1,9 @@
+<resources>
+    <string name="media_play">Play</string>
+    <string name="media_view">View</string>
+    <string name="media_download">Download</string>
+    <string name="media_retry">Try again</string>
+    <string name="media_unavailable">This attachment could not be loaded or displayed.</string>
+    <string name="media_cannot_play">This file could not be played on this device.</string>
+    <string name="media_sticker">Sticker</string>
+</resources>

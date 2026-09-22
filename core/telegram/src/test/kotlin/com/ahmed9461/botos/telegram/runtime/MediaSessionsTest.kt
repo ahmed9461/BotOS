@@ -106,4 +106,17 @@ class MediaSessionsTest {
             assertFalse(f.rpc.calls.any { it.type() == "downloadFile" })
         }
     }
+    @Test fun fileAuthorityRejectsPreviousAccountTimelineAndInvalidFileId() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.connect()
+            val owner = f.account.ready.value!!
+            val chat = com.ahmed9461.botos.model.ChatKey("${owner.userId}:${owner.generation}", "100:1")
+            assertEquals(f.files.key(7), f.files.keyForChat(chat, 7))
+            assertNull(f.files.keyForChat(chat.copy(account = "other"), 7))
+            assertNull(f.files.keyForChat(chat, 0))
+            f.account.logOut()
+            assertNull(f.files.keyForChat(chat, 7))
+        }
+    }
+
 }

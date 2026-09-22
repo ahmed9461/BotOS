@@ -12,7 +12,7 @@ destination = root / 'diagnostics/ui/screenshots'
 destination.mkdir(parents=True, exist_ok=True)
 required = ['appearance-light-ar.png', 'appearance-dark-ar.png', 'appearance-restored-ar.png',
             'workspace-ar.png', 'keyboard-ar.png', 'library-ar.png', 'editor-ar.png', 'account-unconfigured-ar.png',
-            'rich-chat-light-ar.png', 'rich-chat-dark-ar.png', 'rich-chat-switcher-ar.png', 'avatars-library-ar.png', 'streaming-reply-ar.png', 'keyboard-gap.txt']
+            'rich-chat-light-ar.png', 'rich-chat-dark-ar.png', 'rich-chat-switcher-ar.png', 'avatars-library-ar.png', 'streaming-reply-ar.png', 'received-media-light-ar.png', 'received-media-dark-ar.png', 'received-sticker-ar.png', 'keyboard-gap.txt']
 for name in required:
     matches = [p for p in outputs.rglob(name) if p.is_file() and 'additional_output' in str(p)]
     if len(matches) != 1:
@@ -34,6 +34,6 @@ for name in required:
     shutil.copyfile(matches[0], destination / name)
 reports = list((outputs / 'androidTest-results').rglob('TEST-*.xml'))
 suites = [ET.parse(path).getroot() for path in reports]
-assert sum(int(s.get('tests', 0)) for s in suites) == 30, 'Expected all 20 existing app tests plus 6 avatar-store and 4 avatar/streaming UI cases'
+assert sum(int(s.get('tests', 0)) for s in suites) == 46, 'Expected the 30 existing cases plus 6 decoder, 4 controller, 2 local playback and 4 media UI cases'
 assert all(int(s.get(k, 0)) == 0 for s in suites for k in ('failures', 'errors', 'skipped')), 'App device test did not pass'
-print('All thirteen device screenshots, thirty app tests and keyboard measurement verified.')
+print('All sixteen device screenshots, forty-six app tests and keyboard measurement verified.')
