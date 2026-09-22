@@ -192,7 +192,8 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
         })
         if (valid(active)) { active.reducer.add(message); publish(active) }
     }
-    suspend fun stopPending(expectedDraftId: Long): Boolean = perform { active ->
+    suspend fun stopPending(expectedDraftId: Long, expectedChat: ChatKey): Boolean = perform { active ->
+        if (active.reducer.key != expectedChat) throw TdFailure(FailureKind.WRONG_STATE)
         val pending = active.drafts.value
         if (pending == null || pending.draftId != expectedDraftId || !pending.canStop) throw TdFailure(FailureKind.WRONG_STATE)
         active.account.rpc.request(TdJson.command("stopPendingMessage") {

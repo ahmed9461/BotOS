@@ -31,6 +31,7 @@ internal fun LiveBotPanel(
     onSend: () -> Unit, onStart: () -> Unit, onAction: (ActionTicket) -> Unit,
     onReload: () -> Unit, onAccount: () -> Unit, onOpenTelegram: () -> Unit,
     onDismiss: () -> Unit, onConfirmUrl: () -> Unit,
+    onStopPending: (Long) -> Unit = {},
 ) {
     Column(
         Modifier.fillMaxSize().testTag("live-bot-panel"),
@@ -96,7 +97,7 @@ internal fun LiveBotPanel(
                 }
 
                 state.timeline?.let {
-                    MessageTimelineView(it, onAction, Modifier.weight(1f))
+                    MessageTimelineView(it, onAction, Modifier.weight(1f), state.pending, onStopPending, state.busy)
                 } ?: Spacer(Modifier.weight(1f))
 
                 state.keyboard?.let { message ->

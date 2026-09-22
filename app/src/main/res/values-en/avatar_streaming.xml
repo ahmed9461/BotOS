@@ -1,0 +1,13 @@
+<resources>
+    <string name="avatar_title">Bot picture</string>
+    <string name="avatar_edit">Change %1$s picture</string>
+    <string name="avatar_description">%1$s picture</string>
+    <string name="avatar_choose">Choose a photo</string>
+    <string name="avatar_automatic">Use Telegram picture</string>
+    <string name="avatar_local_only">Your chosen picture is used only inside BotOS.</string>
+    <string name="avatar_saved">Bot picture updated.</string>
+    <string name="avatar_error">The picture could not be updated. Choose another image and try again.</string>
+    <string name="pending_writing">Writing…</string>
+    <string name="pending_stopped">Reply stopped.</string>
+    <string name="pending_stop">Stop reply</string>
+</resources>
