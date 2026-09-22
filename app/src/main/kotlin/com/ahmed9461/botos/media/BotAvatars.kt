@@ -46,11 +46,11 @@ internal class BotAvatars(context: Context, account: AccountCoordinator, files: 
         }
         scope.launch {
             var previous = emptyMap<String, AvatarSource>()
-            combine(bookmarks, store.versions, profiles.photos, files.state, account.ready) { bots, custom, remote, downloads, owner ->
+            combine(bookmarks, store.versions, profiles.photos, files.state, account.state) { bots, custom, remote, downloads, _ ->
                 bots.mapNotNull { bot ->
                     val id = LocalAvatarStore.key(bot)
                     val selected = custom[id]?.let { AvatarSource.Local(id, it) } ?: remote[bot.username]?.let { key ->
-                        if (owner == null || key.accountId != owner.userId || key.generation != owner.generation) null
+                        if (!files.isCurrent(key)) null
                         else downloads[key]?.takeIf { it.stage == TransferStage.READY }?.path?.let { AvatarSource.Remote(key, it) }
                     }
                     selected?.let { id to it }
