@@ -112,4 +112,19 @@ class ReceivedMediaUiTest {
         screenshot("received-sticker-ar")
     }
 
+    @Test fun collapsedMediaIsNotComposedOrDownloadedBeforeExplicitReveal() {
+        var requested = 0
+        draw {
+            CompositionLocalProvider(LocalMediaUi provides MediaUiActions(MediaSnapshot(), { _, _ -> requested++ }, {}, {})) {
+                val message = BotMessage(1, chat, 1, listOf(Block.Details("hidden", "إظهار الصورة", listOf(Block.Media("image", info)))))
+                MessageTimelineView(MessageTimeline(chat, listOf(message)), {})
+            }
+        }
+        ui.onNodeWithTag("received-media-image").assertDoesNotExist()
+        ui.runOnIdle { assertEquals(0, requested) }
+        ui.onNodeWithText("إظهار الصورة").performClick()
+        ui.onNodeWithTag("received-media-image").assertIsDisplayed()
+        ui.waitUntil(5_000) { requested > 0 }
+    }
+
 }

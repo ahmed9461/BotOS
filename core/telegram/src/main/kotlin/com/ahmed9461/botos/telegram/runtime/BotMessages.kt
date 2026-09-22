@@ -139,12 +139,12 @@ internal object BotMessageAdapter {
                 "pageBlockBlockQuote" -> listOf(Block.RichQuote(id, blocks(raw.array("blocks"), "$id-quote", depth + 1), rich(raw.obj("credit"))))
                 "pageBlockExpandableBlockQuote" -> listOf(Block.Quote(id, rich(raw.obj("text")), rich(raw.obj("credit")).takeUnless(StyledText::isBlank), expandable = true))
                 "pageBlockPullQuote" -> listOf(Block.Quote(id, rich(raw.obj("text")), rich(raw.obj("credit")).takeUnless(StyledText::isBlank)))
-                "pageBlockAnimation" -> listOf(Block.Media(id, fileInfo(raw, "animation", "animation", MediaKind.ANIMATION)))
+                "pageBlockAnimation" -> protectedMedia(raw, id, fileInfo(raw, "animation", "animation", MediaKind.ANIMATION))
                 "pageBlockAudio" -> listOf(Block.Media(id, fileInfo(raw, "audio", "audio", MediaKind.AUDIO)))
                 "pageBlockDocument" -> listOf(Block.Media(id, fileInfo(raw, "document", "document", MediaKind.DOCUMENT)))
-                "pageBlockVideo" -> listOf(Block.Media(id, fileInfo(raw, "video", "video", MediaKind.VIDEO)))
+                "pageBlockVideo" -> protectedMedia(raw, id, fileInfo(raw, "video", "video", MediaKind.VIDEO))
                 "pageBlockVoiceNote" -> listOf(Block.Media(id, fileInfo(raw, "voice_note", "voice", MediaKind.VOICE_NOTE)))
-                "pageBlockPhoto" -> listOf(Block.Media(id, photoInfo(raw)))
+                "pageBlockPhoto" -> protectedMedia(raw, id, photoInfo(raw))
                 "pageBlockCover" -> raw.obj("cover")?.let { block(it, "$id-cover", depth + 1) } ?: listOf(Block.Unsupported(id))
                 "pageBlockEmbedded" -> listOf(Block.Media(id, MediaInfo(MediaKind.EMBEDDED,
                     caption = caption(raw.obj("caption")), url = safeBotUrl(raw.string("url")),
@@ -183,6 +183,13 @@ internal object BotMessageAdapter {
                 else -> listOf(Block.Unsupported(id))
             }
         }
+        private fun protectedMedia(raw: JsonObject, id: String, info: MediaInfo): List<Block> {
+            val media = Block.Media(id, info)
+            return if (raw.flag("has_spoiler")) {
+                listOf(Block.Details("$id-spoiler", "•••", listOf(media)))
+            } else listOf(media)
+        }
+
         private fun richButton(button: JsonObject, id: String): BotButton? {
             if (button.type() != "inlineButton") return null
             val label = rich(button.obj("text")).plainText().take(256)

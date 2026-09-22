@@ -93,4 +93,15 @@ class RichAdapterRegressionTest {
         assertTrue(block.children.single() is Block.RichDetails)
         assertEquals("مصدر تجريبي", block.credit.plainText())
     }
+    @Test fun richVisualMediaStayCollapsedWhenTheirSpoilerFlagIsSet() {
+        for (kind in listOf("pageBlockPhoto", "pageBlockVideo", "pageBlockAnimation")) {
+            val hidden = TdJson.command(kind) { put("has_spoiler", true) }
+            val visible = TdJson.command(kind) { put("has_spoiler", false) }
+            val model = BotMessageAdapter.message(message(rich(buildJsonArray { add(hidden); add(visible) })), key, 1)!!
+            val masked = model.blocks.first() as Block.Details
+            assertTrue(masked.children.single() is Block.Media)
+            assertTrue(model.blocks.last() is Block.Media)
+        }
+    }
+
 }
