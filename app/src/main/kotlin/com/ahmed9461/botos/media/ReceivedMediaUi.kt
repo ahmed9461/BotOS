@@ -24,6 +24,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
@@ -51,6 +53,7 @@ internal data class MediaUiActions(
     val cancel: (MediaReference) -> Unit,
     val open: (MediaReference) -> Unit,
 )
+internal val MediaFrameRenderedKey = SemanticsPropertyKey<Boolean>("BotOSMediaFrameRendered")
 internal val LocalMediaUi = staticCompositionLocalOf<MediaUiActions?> { null }
 
 @Composable
@@ -243,9 +246,11 @@ private fun PlaybackView(media: DecodedMedia.Playback) {
     val owner = LocalLifecycleOwner.current
     val playback = remember(media, context) { LocalMediaPlayback(context, media) }
     var error by remember(media) { mutableStateOf(false) }
+    var firstFrame by remember(media) { mutableStateOf(false) }
     DisposableEffect(playback, owner) {
         val listener = object : Player.Listener {
             override fun onPlayerError(failure: PlaybackException) { error = true }
+            override fun onRenderedFirstFrame() { firstFrame = true }
         }
         val lifecycle = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) playback.close()
@@ -264,6 +269,7 @@ private fun PlaybackView(media: DecodedMedia.Playback) {
         player = playback.player; useController = true
         setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         controllerShowTimeoutMs = if (media.mimeType.startsWith("audio/")) 0 else 4000
-    } }, modifier = Modifier.fillMaxWidth().height(if (media.mimeType.startsWith("audio/")) 140.dp else 330.dp),
+    } }, modifier = Modifier.fillMaxWidth().height(if (media.mimeType.startsWith("audio/")) 140.dp else 330.dp)
+        .testTag("received-playback").semantics { this[MediaFrameRenderedKey] = firstFrame },
         update = { it.player = playback.player })
 }
