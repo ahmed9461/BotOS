@@ -36,7 +36,12 @@ internal class AndroidVoiceCapture(context: Context) : VoiceCapture {
             check(recorder == null)
             val file = File.createTempFile("botos-voice-", ".m4a", app.cacheDir)
             @Suppress("DEPRECATION")
-            val next = if (Build.VERSION.SDK_INT >= 31) MediaRecorder(app) else MediaRecorder()
+            val next = try {
+                if (Build.VERSION.SDK_INT >= 31) MediaRecorder(app) else MediaRecorder()
+            } catch (failure: Exception) {
+                file.delete()
+                throw failure
+            }
             try {
                 next.setAudioSource(MediaRecorder.AudioSource.MIC)
                 next.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
@@ -52,7 +57,7 @@ internal class AndroidVoiceCapture(context: Context) : VoiceCapture {
                 recorder = next
                 output = file
             } catch (failure: Exception) {
-                next.release()
+                try { next.release() } catch (_: RuntimeException) { /* Preserve the original error. */ }
                 file.delete()
                 throw failure
             }
@@ -71,7 +76,10 @@ internal class AndroidVoiceCapture(context: Context) : VoiceCapture {
             } catch (failure: RuntimeException) {
                 file.delete()
                 throw IOException("Recording too short", failure)
-            } finally { active.release() }
+            } finally {
+                try { active.release() }
+                catch (_: RuntimeException) { file.delete() }
+            }
             try {
                 RecordedVoice(file, duration(file))
             } catch (failure: Exception) {
@@ -88,7 +96,9 @@ internal class AndroidVoiceCapture(context: Context) : VoiceCapture {
             val file = output
             output = null
             try { active?.reset() } catch (_: RuntimeException) { /* Release and discard below. */ }
-            try { active?.release() } finally { file?.delete() }
+            try { active?.release() }
+            catch (_: RuntimeException) { /* Nothing from an aborted clip can be queued. */ }
+            finally { file?.delete() }
         }
     }
 
@@ -130,7 +140,12 @@ internal class OutgoingVoiceSession(private val capture: VoiceCapture, private v
         } finally {
             withContext(NonCancellable + Dispatchers.IO) {
                 clip?.file?.delete()
-                try { staged?.let { uploads.discardPreview(it) } }
+                try {
+                    staged?.let {
+                        try { uploads.discardPreview(it) }
+                        catch (_: Exception) { /* The journal alone decides ownership. */ }
+                    }
+                }
                 finally { capture.abort() }
             }
         }
