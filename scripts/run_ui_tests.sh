@@ -2,6 +2,14 @@
 # Disposable CI emulator. Keep the real device gate; bound setup and cleanup separately.
 set -euo pipefail
 root="${ANDROID_HOME:?Android SDK must be configured first}"
+# AVD isolation must not change Gradle's debug keystore between APK assembly and
+# connected tests. Preserve the caller's Android user/home environment for Gradle.
+gradle_unset_android_env=()
+gradle_original_android_env=()
+for name in ANDROID_SDK_HOME ANDROID_USER_HOME ANDROID_EMULATOR_HOME ANDROID_AVD_HOME; do
+  if [[ -v "$name" ]]; then gradle_original_android_env+=("$name=${!name}");
+  else gradle_unset_android_env+=(-u "$name"); fi
+done
 mkdir -p diagnostics/ui
 manager="$root/cmdline-tools/latest/bin/sdkmanager"
 image='system-images;android-35;google_apis;x86_64'
@@ -116,4 +124,4 @@ if [[ "${BOTOS_VERIFY_INPLACE_UPDATE:-false}" == 'true' ]]; then
   python3 scripts/verify_inplace_update.py
 fi
 
-timeout -k 15s 8m ./gradlew --no-daemon --no-build-cache --no-configuration-cache --console=plain "$app_task" "$@" 2>&1 | tee diagnostics/ui/tests.txt
+timeout -k 15s 8m env "${gradle_unset_android_env[@]}" "${gradle_original_android_env[@]}" ./gradlew --no-daemon --no-build-cache --no-configuration-cache --console=plain "$app_task" "$@" 2>&1 | tee diagnostics/ui/tests.txt

@@ -1,5 +1,9 @@
 # الاختبارات والأدلة — BotOS
 
+## 23 سبتمبر 2026 — owner delivery الأول توقف بعد نجاح الترقية
+
+[owner delivery 35917995670](https://github.com/ahmed9461/BotOS/actions/runs/35917995670) قبل طلب CI88، وبنى baseline 0.4 بلا إعداد حساب. داخل خطوة المالك نجح probe الفعلي `owner_upgrade_0.4_to_0.5=passed` على محاكي بشهادة CI مؤقتة، أي ثبّت النسختين بلا uninstall وبقي ملف الاختبار والتفضيلات. بعده فشل `connectedOwnerPreviewAndroidTest` عند إعادة تغليف Gradle للحزمة بـ`INSTALL_FAILED_UPDATE_INCOMPATIBLE`: تغير سياق Android user/home بين بناء APK وتشغيل الاختبار فأصبح توقيع إعادة الحزم مختلفًا. **لا تقرير startup ناجح ولا CMS ولا APK مهيأ مسلّم من هذا التشغيل.** خطة التصحيح في المهمة 0007-E؛ طلب CI88 القديم عُطّل قبل مصدر جديد.
+
 ## 23 سبتمبر 2026 — بوابة مصدر ترقية المالك على CI88
 
 [CI88/35916568481](https://github.com/ahmed9461/BotOS/actions/runs/35916568481) على `c59350836c2b14285e65500094a6c5849baf04e3` نجح. حزمة BotOS-runtime-checks-88/10775636751 طابقت SHA256 `9e72a377eeaf7d0e7c9e91aba52bc03838dd59aaade7ea3f5a2d938ff72fbef9`. XML: 105 JVM + 8 native + 77 app، صفر فشل/خطأ/تخطٍ. 21 لقطة، روجعت لقطة outgoing-voice-dark-ar؛ IME gap=6.095238dp. lint التطبيق 0 أخطاء/36 تحذيرًا والمحرك 0/0؛ native `accountUsed=false`. اجتازت اختبارات Python الخاصة بترتيب تثبيت 0.4→0.5 ورفض التوقيع والإصدار المختلف ضمن بوابة المصدر؛ **لم يعمل بعد بناء المالك المهيأ أو اختبار الترقية الفعلي على المحاكي الخاص**. تفعيل طلب التسليم من هذا المصدر هو البوابة التالية.
