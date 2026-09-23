@@ -203,7 +203,7 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
         return AttachmentTarget(active.reducer.key, active.chatId, active.account.generation, active.selection.serial, active.selection.username ?: return null)
     }
 
-    /** One-shot send. Timeout is deliberately uncertain and is never retried automatically. */
+    /** One-shot send. Once RPC is invoked, unknown outcomes are never converted back to a safe retry. */
     suspend fun sendAttachment(
         expected: AttachmentTarget,
         attachment: PreparedAttachment,
@@ -215,28 +215,40 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
         if (!matches(active, expected) || active.faulted || _state.value.status != ConversationStatus.READY || !active.operation.tryLock()) {
             return@withContext AttachmentSendResult.Rejected
         }
+        val content = try { OutgoingMedia.content(attachment, caption) }
+        catch (_: IllegalArgumentException) {
+            active.operation.unlock()
+            return@withContext AttachmentSendResult.Rejected
+        }
         change(active) { it.copy(busy = true, issue = null) }
         try {
-            val content = OutgoingMedia.content(attachment, caption)
             val message = active.account.rpc.request(TdJson.command("sendMessage") {
                 put("chat_id", active.chatId)
                 put("options", TdJson.command("messageSendOptions") { put("sending_id", sendingId) })
                 put("input_message_content", content)
             })
-            if (message.type() != "message") throw TdFailure(FailureKind.PROTOCOL)
-            if (!matches(active, expected)) return@withContext AttachmentSendResult.Rejected
-            active.reducer.add(message)
-            publish(active)
+            if (message.type() != "message") return@withContext AttachmentSendResult.Uncertain(sendingId)
             val temporaryId = message.number("id") ?: return@withContext AttachmentSendResult.Uncertain(sendingId)
             registerPendingUpload(message, sendingId)
+            // Target was checked directly before RPC. Switching tabs afterwards doesn't undo an accepted send.
+            if (matches(active, expected)) {
+                active.reducer.add(message)
+                publish(active)
+            }
             AttachmentSendResult.Pending(sendingId, temporaryId)
         } catch (_: TimeoutCancellationException) {
             change(active) { it.copy(issue = ConversationIssue.UNCERTAIN) }
             AttachmentSendResult.Uncertain(sendingId)
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) {
-            change(active) { it.copy(issue = ConversationIssue.CONNECTION) }
-            AttachmentSendResult.Rejected
+        catch (failure: TdFailure) {
+            change(active) {
+                it.copy(issue = if (failure.kind == FailureKind.BAD_INPUT) ConversationIssue.UNSUPPORTED else ConversationIssue.UNCERTAIN)
+            }
+            if (failure.kind == FailureKind.BAD_INPUT) AttachmentSendResult.Rejected
+            else AttachmentSendResult.Uncertain(sendingId)
+        } catch (_: Exception) {
+            change(active) { it.copy(issue = ConversationIssue.UNCERTAIN) }
+            AttachmentSendResult.Uncertain(sendingId)
         } finally {
             change(active) { it.copy(busy = false) }
             active.operation.unlock()
@@ -270,6 +282,37 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
                 val sendingId = uploadSendingByTemporaryId.remove(temporaryId) ?: return
                 _uploadEvents.tryEmit(UploadEvent.Failed(sendingId, temporaryId))
             }
+        }
+    }
+
+    /** Read-only restart probe. Missing/unknown messages remain retained and are never resent automatically. */
+    suspend fun inspectAttachment(
+        accountKey: String,
+        chatId: Long,
+        temporaryMessageId: Long,
+        sendingId: Int,
+    ): UploadEvent? = withContext(engineDispatcher) {
+        if (chatId == 0L || temporaryMessageId == 0L || sendingId <= 0) return@withContext null
+        val expectedUserId = accountKey.substringBefore(':').toLongOrNull() ?: return@withContext null
+        val owner = account.ready.value ?: return@withContext null
+        if (owner.userId != expectedUserId) return@withContext null
+        val message = try {
+            owner.rpc.request(TdJson.command("getMessage") {
+                put("chat_id", chatId)
+                put("message_id", temporaryMessageId)
+            })
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { return@withContext null }
+        if (account.ready.value !== owner || message.type() != "message") return@withContext null
+        val sendingState = message.obj("sending_state")
+        when (sendingState?.type()) {
+            "messageSendingStatePending" -> {
+                val observed = sendingState.number("sending_id")?.toInt() ?: return@withContext null
+                if (observed == sendingId) UploadEvent.Pending(sendingId, temporaryMessageId) else null
+            }
+            "messageSendingStateFailed" -> UploadEvent.Failed(sendingId, temporaryMessageId)
+            null -> UploadEvent.Succeeded(sendingId, temporaryMessageId, message.number("id") ?: temporaryMessageId)
+            else -> null
         }
     }
 

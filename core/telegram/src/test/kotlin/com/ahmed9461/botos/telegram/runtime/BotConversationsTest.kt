@@ -242,4 +242,14 @@ class BotConversationsTest {
         }
     }
 
+    @Test fun recoveryProbeUsesKnownTemporaryMessageOnlyAndNeverResends() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.connect(); f.open()
+            val result = f.live.inspectAttachment("42:99", 100, 10, 222)
+            assertNull(result)
+            assertFalse(f.rpc.calls.any { it.type() == "sendMessage" && it.obj("options")?.number("sending_id") == 222L })
+            assertTrue(f.rpc.calls.any { it.type() == "getMessage" && it.number("message_id") == 10L })
+        }
+    }
+
 }
