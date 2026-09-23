@@ -39,14 +39,7 @@ internal fun OutgoingAttachmentHost(chat: ChatKey?, vm: OutgoingAttachmentViewMo
     val monitor by vm.monitor.collectAsStateWithLifecycle()
     val voice by vm.voice.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val lifecycle = LocalLifecycleOwner.current
-    DisposableEffect(lifecycle, vm) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) vm.cancelVoice()
-        }
-        lifecycle.lifecycle.addObserver(observer)
-        onDispose { lifecycle.lifecycle.removeObserver(observer); vm.cancelVoice() }
-    }
+    VoiceForegroundGuard(vm::cancelVoice)
     val photo = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia(), vm::picked)
     val video = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia(), vm::picked)
     val audio = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument(), vm::picked)
@@ -91,6 +84,20 @@ internal fun OutgoingAttachmentHost(chat: ChatKey?, vm: OutgoingAttachmentViewMo
     }
     preview?.takeIf { it.target.chat == chat && it.target == visible }?.let { outgoing ->
         OutgoingPreviewDialog(outgoing, caption, busy, vm::editCaption, vm::send, vm::cancel)
+    }
+}
+
+/** The same observer is used by the real host and the device lifecycle regression. */
+@Composable
+internal fun VoiceForegroundGuard(onCancel: () -> Unit) {
+    val lifecycle = LocalLifecycleOwner.current
+    val cancel by rememberUpdatedState(onCancel)
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) cancel()
+        }
+        lifecycle.lifecycle.addObserver(observer)
+        onDispose { lifecycle.lifecycle.removeObserver(observer); cancel() }
     }
 }
 

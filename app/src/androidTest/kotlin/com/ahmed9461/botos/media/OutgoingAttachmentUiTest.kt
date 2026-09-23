@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.io.PlatformTestStorageRegistry
+import androidx.lifecycle.Lifecycle
 import com.ahmed9461.botos.data.StagedOutgoingMedia
 import com.ahmed9461.botos.design.BotOsTheme
 import com.ahmed9461.botos.model.ChatKey
@@ -28,6 +29,7 @@ import org.junit.Rule
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Fake pixels and a fixed target; no account, file provider or real microphone is used. */
 @RunWith(AndroidJUnit4::class)
@@ -108,5 +110,15 @@ class OutgoingAttachmentUiTest {
         ui.onNodeWithTag("outgoing-voice-cancel").performClick()
         ui.onNodeWithTag("outgoing-voice").assertDoesNotExist()
         ui.runOnIdle { assertTrue(stopped == 1) }
+    }
+
+    @Test fun voiceCaptureStopsWhenActivityLeavesForeground() {
+        val cancellations = AtomicInteger(0)
+        ui.setContent { VoiceForegroundGuard { cancellations.incrementAndGet() } }
+        ui.waitForIdle()
+        assertTrue(cancellations.get() == 0)
+        ui.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        assertTrue("Background must cancel recording before another screen can use the mic",
+            cancellations.get() >= 1)
     }
 }
