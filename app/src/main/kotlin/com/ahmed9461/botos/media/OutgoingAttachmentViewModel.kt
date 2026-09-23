@@ -15,7 +15,8 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 internal class OutgoingAttachmentViewModel(application: Application) : AndroidViewModel(application) {
-    private val uploads = (application as BotOsApplication).telegramUploads
+    private val app = application as BotOsApplication
+    private val uploads = app.telegramUploads
     private val preparer = OutgoingAttachmentPreparer(application, uploads)
     val monitor = uploads.state
     private val _preview = MutableStateFlow<OutgoingPreview?>(null)
@@ -30,7 +31,7 @@ internal class OutgoingAttachmentViewModel(application: Application) : AndroidVi
 
     init {
         viewModelScope.launch {
-            application.botConversations.state.collect {
+            app.botConversations.state.collect {
                 val current = uploads.captureTarget()
                 if (awaiting?.first != null && awaiting?.first != current) awaiting = null
                 val old = _preview.value
