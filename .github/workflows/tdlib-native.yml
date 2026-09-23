@@ -84,6 +84,7 @@ jobs:
       - name: Verify pinned native contract and unchanged design
         run: |
           python3 scripts/check_tdlib_contract.py
+          python3 scripts/check_rich_coverage.py
           python3 scripts/check_repo.py --base "${{ github.event.pull_request.base.sha || github.event.before }}"
           python3 -m unittest discover -s scripts/tests -v
           bash -n scripts/install_android_sdk.sh
@@ -106,7 +107,7 @@ jobs:
       - name: Archive unconfigured integration APK
         run: |
           mkdir -p artifacts
-          cp app/build/outputs/apk/debug/app-debug.apk artifacts/BotOS-0.4.0-account-unconfigured.apk
+          cp app/build/outputs/apk/debug/app-debug.apk artifacts/BotOS-0.5.0-account-unconfigured.apk
           sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
       - name: Publish unconfigured test build
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

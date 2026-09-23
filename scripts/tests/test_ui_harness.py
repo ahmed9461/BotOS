@@ -20,6 +20,14 @@ class UiHarnessContractTest(unittest.TestCase):
         self.assertIn("shell input keyevent KEYCODE_WAKEUP", self.script)
         self.assertIn("wm dismiss-keyguard", self.script)
 
+    def test_gradle_keeps_original_android_home_after_owner_upgrade_probe(self):
+        self.assertIn('for name in ANDROID_SDK_HOME ANDROID_USER_HOME ANDROID_EMULATOR_HOME ANDROID_AVD_HOME',
+                      self.script)
+        self.assertIn('env "${gradle_unset_android_env[@]}" "${gradle_original_android_env[@]}" ./gradlew',
+                      self.script)
+        self.assertLess(self.script.index('python3 scripts/verify_inplace_update.py'),
+                        self.script.index('env "${gradle_unset_android_env[@]}"'))
+
     def test_disposable_emulator_only_observes_stable_foreground(self):
         guard = self.script.index("ro.kernel.qemu")
         preflight = self.script.index("preflight_deadline")

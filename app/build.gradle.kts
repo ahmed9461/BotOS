@@ -35,8 +35,8 @@ android {
         applicationId = "com.ahmed9461.botos"
         minSdk = 26
         targetSdk = 37
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["launcherLabel"] = "@string/app_name"
     }
@@ -87,6 +87,9 @@ dependencies {
     implementation(libs.navigation3.ui)
     implementation(libs.navigation3.runtime)
     implementation(libs.coroutines.android)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
+    implementation(libs.lottie)
     debugImplementation(libs.compose.tooling)
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     androidTestImplementation(platform(libs.compose.bom))

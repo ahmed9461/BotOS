@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.ahmed9461.botos.data.StoreSnapshot
 import com.ahmed9461.botos.design.*
 import com.ahmed9461.botos.model.*
+import com.ahmed9461.botos.media.BotAvatar
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -187,7 +188,7 @@ private fun CompactBotHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        CompactBotBadge(bot.title)
+        BotAvatar(bot, 38.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(
                 bot.title,
@@ -315,27 +316,10 @@ private fun BotSwitcher(
                             Text("✓", color = MaterialTheme.colorScheme.primary)
                         }
                     },
+                    leadingIcon = { BotAvatar(saved, 32.dp, editable = false) },
                     modifier = Modifier.testTag("bot-switch-item-${saved.id}"),
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun CompactBotBadge(title: String) {
-    Surface(
-        shape = RoundedCornerShape(13.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        modifier = Modifier.size(38.dp),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                title.take(1),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
         }
     }
 }
@@ -429,7 +413,7 @@ internal fun LibraryScreen(snapshot: StoreSnapshot, onAdd: () -> Unit, onEdit: (
                         Surface(onClick = { onEdit(bot.id) }, shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surface,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
                             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                BotBadge(bot.title)
+                                BotAvatar(bot)
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(bot.title, style = MaterialTheme.typography.titleMedium)
                                     Text("@${bot.username}", style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Ltr), color = MaterialTheme.colorScheme.onSurfaceVariant)

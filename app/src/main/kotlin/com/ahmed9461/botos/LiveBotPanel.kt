@@ -9,6 +9,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
@@ -24,6 +27,7 @@ import com.ahmed9461.botos.model.Block
 import com.ahmed9461.botos.telegram.runtime.ConversationIssue
 import com.ahmed9461.botos.telegram.runtime.ConversationState
 import com.ahmed9461.botos.telegram.runtime.ConversationStatus
+import com.ahmed9461.botos.telegram.runtime.AttachmentKind
 
 @Composable
 internal fun LiveBotPanel(
@@ -31,6 +35,10 @@ internal fun LiveBotPanel(
     onSend: () -> Unit, onStart: () -> Unit, onAction: (ActionTicket) -> Unit,
     onReload: () -> Unit, onAccount: () -> Unit, onOpenTelegram: () -> Unit,
     onDismiss: () -> Unit, onConfirmUrl: () -> Unit,
+    onStopPending: (Long) -> Unit = {},
+    attachmentEnabled: Boolean = false,
+    onAttach: (AttachmentKind) -> Unit = {},
+    attachmentNotice: Int? = null,
 ) {
     Column(
         Modifier.fillMaxSize().testTag("live-bot-panel"),
@@ -96,7 +104,7 @@ internal fun LiveBotPanel(
                 }
 
                 state.timeline?.let {
-                    MessageTimelineView(it, onAction, Modifier.weight(1f))
+                    MessageTimelineView(it, onAction, Modifier.weight(1f), state.pending, onStopPending, state.busy)
                 } ?: Spacer(Modifier.weight(1f))
 
                 state.keyboard?.let { message ->
@@ -138,7 +146,12 @@ internal fun LiveBotPanel(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                LiveComposer(draft, onDraft, onSend, state.busy)
+                attachmentNotice?.let { message ->
+                    Text(stringResource(message), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.testTag("outgoing-status"))
+                }
+                LiveComposer(draft, onDraft, onSend, state.busy, attachmentEnabled, onAttach)
             }
         }
     }
@@ -179,13 +192,36 @@ private fun LiveComposer(
     onDraft: (String) -> Unit,
     onSend: () -> Unit,
     busy: Boolean,
+    attachmentEnabled: Boolean,
+    onAttach: (AttachmentKind) -> Unit,
 ) {
+    var options by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    LaunchedEffect(attachmentEnabled, busy) { if (!attachmentEnabled || busy) options = false }
     // BotOsApp owns IME/system insets. This composer must not add them again.
     Row(
         Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 5.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
+        Box {
+            FilledTonalIconButton(onClick = { options = true }, enabled = attachmentEnabled && !busy,
+                modifier = Modifier.size(46.dp).testTag("outgoing-add"), shape = RoundedCornerShape(16.dp)) {
+                BotGlyph(Glyph.ADD, stringResource(R.string.outgoing_add), modifier = Modifier.size(20.dp))
+            }
+            DropdownMenu(expanded = options, onDismissRequest = { options = false }) {
+                listOf(
+                    AttachmentKind.PHOTO to R.string.outgoing_choose_photo,
+                    AttachmentKind.VIDEO to R.string.outgoing_choose_video,
+                    AttachmentKind.AUDIO to R.string.outgoing_choose_audio,
+                    AttachmentKind.VOICE to R.string.outgoing_record_voice,
+                    AttachmentKind.DOCUMENT to R.string.outgoing_choose_file,
+                ).forEach { (kind, label) ->
+                    DropdownMenuItem(text = { Text(stringResource(label)) },
+                        onClick = { options = false; onAttach(kind) },
+                        modifier = Modifier.testTag("outgoing-option-${kind.name.lowercase()}"))
+                }
+            }
+        }
         Surface(
             modifier = Modifier.weight(1f),
             shape = RoundedCornerShape(22.dp),

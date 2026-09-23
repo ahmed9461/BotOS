@@ -36,6 +36,7 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
 import com.ahmed9461.botos.design.*
 import com.ahmed9461.botos.model.*
+import com.ahmed9461.botos.media.AvatarHost
 import com.ahmed9461.botos.telegram.runtime.ConversationState
 import com.ahmed9461.botos.telegram.runtime.ConversationStatus
 
@@ -94,6 +95,7 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel(), accountVm: AccountViewModel =
             }
         }
         val safeInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.ime)
+        AvatarHost(onNotice = vm::notice) {
         Scaffold(
             modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).windowInsetsPadding(safeInsets),
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -123,6 +125,7 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel(), accountVm: AccountViewModel =
                 },
             )
         }
+        }
     }
 }
 
@@ -144,6 +147,8 @@ private fun WorkspaceRoute(vm: WorkspaceViewModel, add: () -> Unit, edit: (Strin
         vm::move, open, vm::updateDraft, { vm.sendPreview(reply) }, vm::activate) { bot ->
         val visibleState = liveState.takeIf { it.username == bot.username }
             ?: ConversationState(bot.username, ConversationStatus.LOADING)
+        com.ahmed9461.botos.media.ReceivedMediaHost(visibleState.timeline?.chat) {
+        com.ahmed9461.botos.media.OutgoingAttachmentHost(visibleState.timeline?.chat) { canAttach, onAttach, attachmentNotice ->
         LiveBotPanel(visibleState, liveDraft, live::edit, live::send, live::start, live::activate,
             live::reload, account, { open(bot.username) }, live::dismiss, {
                 live.confirmedUrl()?.let { url ->
@@ -151,7 +156,11 @@ private fun WorkspaceRoute(vm: WorkspaceViewModel, add: () -> Unit, edit: (Strin
                     catch (_: ActivityNotFoundException) { vm.notice(R.string.open_error) }
                     catch (_: SecurityException) { vm.notice(R.string.open_error) }
                 }
-            })
+            }, onStopPending = { draftId ->
+                visibleState.timeline?.chat?.let { chat -> live.stopPending(chat, draftId) }
+            }, attachmentEnabled = canAttach, onAttach = onAttach, attachmentNotice = attachmentNotice)
+        }
+        }
     }
 }
 

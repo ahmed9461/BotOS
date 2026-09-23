@@ -3,6 +3,7 @@ package com.ahmed9461.botos
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,28 +36,75 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import com.ahmed9461.botos.design.*
 import com.ahmed9461.botos.model.*
+import com.ahmed9461.botos.telegram.runtime.PendingReply
+import kotlinx.coroutines.flow.first
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+private val LocalRichActionIds = staticCompositionLocalOf<Set<String>> { emptySet() }
 private val LocalRichActivation = staticCompositionLocalOf<(String) -> Unit> { {} }
 private val chatTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 @Composable
-internal fun MessageTimelineView(timeline: MessageTimeline, onAction: (ActionTicket) -> Unit, modifier: Modifier = Modifier) {
+internal fun MessageTimelineView(timeline: MessageTimeline, onAction: (ActionTicket) -> Unit, modifier: Modifier = Modifier,
+    pending: PendingReply? = null, onStopPending: (Long) -> Unit = {}, busy: Boolean = false) {
     val listState = rememberLazyListState()
     val duration = LocalMotionMillis.current
     val followTail by remember { derivedStateOf { !listState.canScrollForward } }
+    val currentPending = pending?.takeIf { it.content.chat == timeline.chat }
+    var followPending by remember(timeline.chat) { mutableStateOf(true) }
+    var programmaticScroll by remember(timeline.chat) { mutableStateOf(false) }
+    LaunchedEffect(timeline.chat, listState) {
+        snapshotFlow { listState.isScrollInProgress to listState.canScrollForward }.collect { (scrolling, hasMore) ->
+            if (!programmaticScroll && scrolling) followPending = !hasMore
+            if (!programmaticScroll && !hasMore) followPending = true
+        }
+    }
     LaunchedEffect(timeline.chat, timeline.messages.lastOrNull()?.id) {
-        if (timeline.messages.isNotEmpty() && (followTail || timeline.messages.takeLast(2).any { it.outgoing })) {
+        if (currentPending == null && timeline.messages.isNotEmpty() && (followTail || timeline.messages.takeLast(2).any { it.outgoing })) {
             if (duration == 0) listState.scrollToItem(timeline.messages.lastIndex)
             else listState.animateScrollToItem(timeline.messages.lastIndex)
         }
+    }
+    // Follow a growing reply only while the reader remains at the tail. No whole-report animation.
+    LaunchedEffect(timeline.chat, currentPending?.draftId, currentPending?.content?.revision) {
+        if (currentPending == null || !followPending || listState.isScrollInProgress) return@LaunchedEffect
+        val index = timeline.messages.size
+        snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > index }
+        withFrameNanos { }
+        if (!followPending) return@LaunchedEffect
+        programmaticScroll = true
+        try {
+            if (listState.layoutInfo.visibleItemsInfo.none { it.index == index }) listState.scrollToItem(index)
+            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull { it.index == index }
+            if (last != null) {
+                val extra = last.offset + last.size - listState.layoutInfo.viewportEndOffset
+                if (extra > 0) listState.scrollBy(extra.toFloat())
+            }
+        } finally { programmaticScroll = false }
     }
     LazyColumn(modifier.fillMaxWidth().testTag("message-list"), state = listState,
         verticalArrangement = Arrangement.spacedBy(7.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
         items(timeline.messages, key = { "${it.chat.account}/${it.chat.chat}/${it.id}" }, contentType = { it.outgoing }) {
             MessageBubble(it, onAction)
+        }
+        currentPending?.let { reply ->
+            item(key = "pending/${timeline.chat.account}/${timeline.chat.chat}/${reply.draftId}", contentType = "pending") {
+                Column(Modifier.fillMaxWidth().testTag("pending-reply"), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    MessageBubble(reply.content, {})
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(if (reply.stopped) R.string.pending_stopped else R.string.pending_writing),
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f).testTag("pending-status"))
+                        if (reply.canStop && !reply.stopped) TextButton(onClick = { onStopPending(reply.draftId) }, enabled = !busy,
+                            modifier = Modifier.heightIn(min = 48.dp).testTag("pending-stop")) {
+                            Text(stringResource(R.string.pending_stop), style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -78,9 +126,8 @@ private fun MessageBubble(message: BotMessage, onAction: (ActionTicket) -> Unit)
                         .then(if (buttons.isNotEmpty()) Modifier.width(maximum) else Modifier.wrapContentWidth())
                         .testTag("message-bubble-${message.id}")) {
                     Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CompositionLocalProvider(LocalRichActivation provides { id ->
-                            onAction(ActionTicket(message.chat, message.id, message.revision, id))
-                        }) {
+                        CompositionLocalProvider(LocalRichActionIds provides message.inlineActions.filter { it.enabled }.map { it.id }.toSet(),
+                            LocalRichActivation provides { id -> onAction(ActionTicket(message.chat, message.id, message.revision, id)) }) {
                             content.take(ContentLimits.MAX_BLOCKS).forEach { block -> key(block.id) { RenderBlock(block, message, onAction, 0) } }
                         }
                         if (!message.isFull) Text(stringResource(R.string.rich_partial), style = MaterialTheme.typography.labelSmall,
@@ -128,8 +175,9 @@ private fun StyledTextView(value: StyledText, modifier: Modifier = Modifier, sty
     val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
     val activate by rememberUpdatedState(LocalRichActivation.current)
+    val permitted = LocalRichActionIds.current
     var revealed by remember(value) { mutableStateOf(false) }
-    val annotated = remember(value, primary, primaryContainer, surfaceVariant, onSurfaceVariant, revealed) {
+    val annotated = remember(value, primary, primaryContainer, surfaceVariant, onSurfaceVariant, revealed, permitted) {
         buildAnnotatedString {
             value.spans.forEach { span ->
                 val actionId = span.actionId
@@ -159,7 +207,7 @@ private fun StyledTextView(value: StyledText, modifier: Modifier = Modifier, sty
                     if (RichMark.SPOILER in span.marks && !revealed) {
                         // Hidden text is absent from the semantics/selection tree until revealed.
                         withLink(LinkAnnotation.Clickable("reveal") { revealed = true }) { append("••••") }
-                    } else if (actionId != null) {
+                    } else if (actionId != null && actionId in permitted) {
                         withLink(LinkAnnotation.Clickable(actionId) { activate(actionId) }) { append(span.text) }
                     } else append(span.text)
                 }
@@ -255,7 +303,13 @@ internal fun RenderBlock(block: Block, message: BotMessage, onAction: (ActionTic
                     style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr))
             }
         }
-        is Block.Media -> MediaCard(block.info, message.forceRtl)
+        is Block.Media -> {
+            val reference = MediaReference(message.chat, message.id, message.revision, block.id)
+            if (com.ahmed9461.botos.media.ReceivedMediaItem(reference, block.info)) {
+                if (!block.info.caption.isBlank()) StyledTextView(block.info.caption,
+                    style = MaterialTheme.typography.bodySmall, forceRtl = message.forceRtl)
+            } else MediaCard(block.info, message.forceRtl)
+        }
         is Block.Gallery -> Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
             Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 block.children.take(ContentLimits.MAX_MEDIA).forEach { RenderBlock(it, message, onAction, depth + 1) }

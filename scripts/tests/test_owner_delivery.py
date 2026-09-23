@@ -13,7 +13,7 @@ class OwnerRequestTest(unittest.TestCase):
         self.request = {'enabled': True, 'source_commit': 'a' * 40, 'integration_run': 123}
         self.run = {'id': 123, 'head_sha': 'a' * 40, 'status': 'completed', 'conclusion': 'success',
                     'event': 'pull_request', 'path': '.github/workflows/android.yml',
-                    'head_repository': {'full_name': 'ahmed9461/BotOS'}, 'head_branch': 'feat/rich-chat-polish', 'run_number': 32}
+                    'head_repository': {'full_name': 'ahmed9461/BotOS'}, 'head_branch': 'feat/media-profiles-streaming', 'run_number': 32}
     def test_disabled_request_never_needs_credentials(self):
         self.assertEqual({'enabled': 'false'}, module.validate_request({'enabled': False}, {}, []))
     def test_exact_success_and_docs_only_changes_are_accepted(self):
@@ -23,7 +23,8 @@ class OwnerRequestTest(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 module.validate_request(self.request, self.run | {key: value}, [])
     def test_foreign_repository_or_workflow_is_rejected(self):
-        for key, value in [('head_repository', {'full_name': 'other/BotOS'}), ('path', 'other.yml'), ('head_branch', 'untrusted')]:
+        for key, value in [('head_repository', {'full_name': 'other/BotOS'}), ('path', 'other.yml'),
+                           ('head_branch', 'untrusted'), ('head_branch', 'feat/rich-chat-polish')]:
             with self.subTest(key=key), self.assertRaises(ValueError): module.validate_request(self.request, self.run | {key: value}, [])
     def test_any_untested_code_or_recipient_change_is_rejected(self):
         for path in ['app/build.gradle.kts', 'scripts/owner_delivery.py', 'delivery/recipient.pem', '.github/workflows/owner-delivery.yml']:

@@ -1,44 +1,58 @@
 # بنية BotOS
 
-آخر مراجعة: 20 سبتمبر 2026. ست وحدات فعلية، دون طبقات شكلية إضافية. وجود الموديول لا يثبت نجاحه؛ راجع TESTING للمصدر المسلّم.
-
-## مسؤوليات الوحدات
+آخر مراجعة:23سبتمبر2026. ست وحدات فعلية دونطبقاتشكلية. راجعTESTINGوالذاكرة لمصدرالدليل؛ الكودالمكتوبليسنجاحًا.
 
 | الوحدة | المسؤولية |
 |---|---|
-| core:model | نماذج المكتبة والرسائل وStyledText وRich blocks والأفعال وحدود المحتوى؛ مستقلة عن Android |
-| core:telegram | TdRpc والتفويض وAccountCoordinator وBotConversations والمحول والمختزل؛ JSON لا يصل إلى Compose |
-| core:tdlib | JSONJava الرسمي وAndroidTelegramSession وSessionVault؛ المخطط وJava وJNI من المصدر نفسه |
-| core:data | WorkspaceStore للأسماء والترتيب والتفضيلات، وAccountRestoreStore لإذن الاستعادة المنفصل |
-| core:designsystem | الألوان والأشكال والحركة والرموز والأيقونة المعتمدة |
-| app | تركيب المنسقات والـViewModels والشاشات والتنقل وعارض الرسائل؛ لا منطق اتصال داخل Composables |
+| core:model | المكتبة والرسائل وStyledText وRich والوسائط والأفعال وحدودالمحتوى؛ مستقلةعنAndroid |
+| core:telegram | TdRpc والتفويض وAccountCoordinator وBotConversations والمحول والمختزل وTelegramFiles وBotProfiles وPendingReplies |
+| core:tdlib | JSONJava وAndroidTelegramSession وSessionVault؛ المخطط وJava وJNIمنالمصدرنفسه |
+| core:data | WorkspaceStore وAccountRestoreStore وLocalAvatarStoreللصورالمحلية |
+| core:designsystem | الألوان والأشكال والحركة والرموز والأيقونةالمعتمدة |
+| app | تركيبالمنسقاتوالـViewModelsوالشاشاتوالعرض؛ لاتنفيذاتصالداخلComposables |
 
 ## الحساب والجلسة
 
-UI intent → AccountCoordinator → AccountSession / TdRpc → TDLib updates → state → AccountRoute.
+UIintent → AccountCoordinator → AccountSession/TdRpc → TDLibupdates → state → AccountRoute.
 
-الموافقة تسبق الجلسة الأولى. READY وgetMe يحددان الحساب؛ لا يُفترض نجاح الدخول من Ok عام. المدخلات مؤقتة، وعمليات التخزين خارج مسار الرسم. close يحفظ الجلسة، وlogOut يمحوها بعد إقرار Telegram والإغلاق. فقد المفتاح يفشل بوضوح دون محو خفي. قاعدة TDLib محمية بمفتاح Keystore ومستبعدة من النسخ الاحتياطي.
+الموافقةتسبقالجلسة. READYوgetMeيحددانالحساب؛ لاافتراضلنجاحالدخولمنOkعام. المدخلاتمؤقتة، والتخزينخارجالرسم. closeيحفظالجلسة، وlogOutيمحوهابعدإقرارTelegramوالإغلاق. فقدالمفتاحلايمحوالبياناتخفيًا. قاعدةTDLibمحميةبمفتاحKeystoreومستبعدةمنbackup.
 
-## المحادثات
+## المحادثة والبث
 
-ReadyAccount → BotConversations → searchPublicChat / getUser → bot verification → history / updates → reducer → LiveBotPanel.
+ReadyAccount → BotConversations → searchPublicChat/getUser → botverification → history/updates → reducer → LiveBotPanel.
 
-يجب التحقق من chatTypePrivate وuserTypeBot؛ الاسم المحلي ليس إثباتًا. التاريخ محدود، وأجيال الحساب والمحادثة ومراجعات الرسالة تعزل النتائج والأفعال القديمة. لا إعادة تلقائية لفعل انتهت مهلته، ولا /start عند التبديل. يحافظ المختزل على التعديلات المبكرة ولا يعيد معرف الإرسال المؤقت بعد استبداله بالنهائي.
+يلزمchatTypePrivate وuserTypeBot. التاريخمحدود؛ الأجيالومراجعاتالرسائلتعزلالنتائجوالأفعال. المهلةلاتعيدالفعل، و/startليسأثرتنقل. التعديلاتالمبكرةلاتضيع ومعرفالإرسالالمؤقتلايعودبعدنجاحه.
+
+PendingRepliesمنupdatePendingMessageمستقلعنتاريخالمحادثةوعنمسودةالمستخدم. مدتهحسبالخيارالمثبت، وأفعالهمعطلةقبلالنهائي. يعرضهTimelineبمفتاحمستقلويحدثهفيمكانه؛الإيقافيتحققمنChatKey وdraftIdوcanStop. لاتاريخأوSentمصطنعانللمؤقت. ربط العرض اجتازCI60 ضمن الشريحةB.
+
+## الصور والملفات
+
+BotOsApplicationيملكTelegramFiles/BotProfiles/BotAvatarsمرةواحدة. الملفاتتعزلبالحسابوجيلالجلسةوبحدتوازي؛ pathsمنTDLibفقط. BotProfilesيتحققمنهويةالبوتدونفتحالشاتأوإرسال/start.
+
+LocalAvatarStoreمستقلعنبياناتالمكتبةوالجلسة: المفتاحbookmarkid+username، والمجلدnoBackup/bot-avatars. URIمنPhotoPickerاختارهالمستخدم، حد16MiB، إعادةJPEG512pxوكتابةAtomicFileمحكومة. الصورةالمعروضة160pxوالفكخارجMain. التحليلاتلاتقرأملفًامنبوتنصي.
+
+BotAvatarsيجمعالأسماءوالصوروالتنزيلاتوالحساب؛ الأولويةمحليةثمTelegramثمالحرف. الصورالواردةتمسحمنحالةالعرضعندالخروج/تبدلالجيل، أماالتخصيصالمحليفتزيينللمكتبةالمحلية. لايُرسلإلىTelegram. AvatarViewModelيحفظهدفاختيارالصورةعبرإعادةإنشاءالنشاطفقط، لاتحويلنتيجةمنتقيإلىالبوتالذيأصبحظاهرًاحديثًا.
 
 ## Rich والعارض
 
-يحوّل messageRichMessage وفق المخطط المثبت، مع ميزانيات أثناء الاجتياز لا بعد بناء شجرة غير محدودة. الجداول والاقتباسات والتفاصيل تحتفظ بالبنية. الروابط والأزرار داخل النص تمر عبر ActionTicket ومسار الموافقة، لا ACTION_VIEW مباشرًا. getFullRichMessage للمحتوى الجزئي مقيد بتوازي اثنين وبجيل العرض ومراجعة الرسالة.
+messageRichMessageيحوّلمنالمخططالمثبتبميزانياتأثناءالاجتياز. الجداولوالاقتباساتوالتفاصيلتحفظالبنية. الروابطوأزرارالنصتمرعبرActionTicketوموافقة، لافتحخارجيآلي. getFullRichMessageللمحتوىالجزئيبتوازي2ومراجعةوجيل. المضمنةالمؤقتةغيرقابلةللتنفيذحتىالرسالةالنهائية.
 
-صفوف الأزرار الخارجية أسفل فقاعة المحتوى، وترتيبها حسب البروتوكول، والوقت من date. مرفقات Rich بطاقات بيانات ووصف فقط؛ لا تنزيل أو تشغيل أو HTML أو JavaScript من البوت.
+الأزرارالخارجيةأسفلالفقاعةوترتيبهاحسبالبروتوكولوالوقتمنdate. عرض الوسائط فيC يرتبط بفهرس الرسالة ومراجعتها واجتازCI64؛ لا تنفيذ HTML/JavaScript.
 
-## التنقل والتصميم
+## احتفاظ المرفقات الصادرة — D2
 
-Navigation3 للمساحة والمكتبة والمظهر والمحرر والحساب. كل Route يجمع حالته داخل NavEntry. مبدّل صغير بسهم بدل شريط البوتات. رجوع النظام لا يضغط زر رجوع البوت. BotOsApp وحده يملك systemBars وdisplayCutout وIME؛ لا إضافة imePadding في الشاشات. المكتبة والمظهر والأيقونة محفوظة.
+OutgoingMediaStore ينسخ stream إلى noBackup/telegram/main/files/botos_outgoing خارج Main، بحصص50MiB/200MiB/32. OutgoingUploadJournal مستقل وذري، يحجز الهدف/الملف/sendingId قبلRPC؛ مرحلةATTEMPTED تمنع التكرار، وUNKNOWN تحتفظ بالملف، وSUCCEEDED النهائي وحده يجيز إخلاءه. لا caption أو محتوى الملف في السجل. المخزن اجتازCI75، ومنسقTelegramUploads اجتازCI77، والواجهةCI81، والتسجيل مع إيقاف الخلفيةCI85.
 
-## البناء والتسليم
+## التصميم والتسليم
 
-PR CI بلا أسرار ويختبر المحرك والتطبيق والجهاز. ownerPreview المهيأ هويته `com.ahmed9461.botos.app`، ويثبت بجانب 0.3 بموافقة المالك. يُبنى من مصدر مجتاز فقط، دون cache للقيم السرية. الحمولة CMS مشفرة والتوقيع الدائم خارج Git وCI. تُستعاد المفاتيح من Library الخاصة، ولا تنشأ بدائل. راجع OWNER_DELIVERY.
+Navigation3والـRoutesتجمعالحالةداخلNavEntry. المبدّلبسهمورجوعالنظاملايضغطأزرارالبوت. BotOsAppوحدهمالكsystemBars/displayCutout/IME. المكتبةوالمظهرمحفوظتان؛ الصورةتحلنفسشارةالحرففقط.
+
+PRCIبلاأسرار. هويةownerPreviewهيcom.ahmed9461.botos.app، والتوقيعالدائمخارجGitويستعادمنLibraryالخاصة. owner-deliveryمنمصدرمجتازوبحمولةCMSمشفرّة، لاAPKغيرمهيأبدلالمطلوب. راجعOWNER_DELIVERY.
 
 ## الحدود
 
-لا تشغيل وسائط أوStreaming أوMiniApps أوPayments مكتمل. لا يستنتج أداء شامل من وجود قوائم كسولة أو اختبارات fixtures. التوسع وفق خطة محدودة بعد ملاحظات المالك.
+تشغيل الوسائطC اجتازCI64 ضمن fixtures، وإرسال المرفقات والتسجيلD اجتازCI85، ومصفوفةRich واختباراتالبثوالتعديل اجتازتCI86. نسخةالمالك0.5 لم تُجهز أو توقع بعد؛ MiniApps/Paymentsوالتنضيدالكاملومصفوفةالأداءليستمكتملة. لاتدعمختباراتصورمصطنعةفحصالهواتفالحقيقيةأوالشبكةالضعيفةأوالـFPS.
+
+## تحديث0007-C — تحققCI64
+
+الصور والبثB مجتازانفيCI60. CتضيفMediaReference وفهرس رسائل نهائية→ReceivedMediaController→TelegramFiles→MediaDecoder→ReceivedMediaItem/Viewer. المنسق يملك الطلبات والفك وحالةالمعاينة؛ Composables لا تفتحجلسةأوتقرأمسارًا مننص. ثمانمعاينات، وفكبتوازي2، ومشغلواحدمحليبطلبصريح. إطارالعارضيغلقعندSTOP أو تغيرالمحادثةوالحساب؛ FileDataSourceيمنعشبكةمنالمشغل. CاجتازتCI64. DإرسالالمرفقاتوEالمصفوفةوالتسليمغيرمكتملةبعد.

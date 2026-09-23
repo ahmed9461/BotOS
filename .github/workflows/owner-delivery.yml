@@ -1,7 +1,7 @@
 name: Private owner delivery
 on:
   push:
-    branches: [feat/rich-chat-polish]
+    branches: [feat/media-profiles-streaming]
     paths: ['delivery/request.json']
   workflow_dispatch:
 permissions:
@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.repository == 'ahmed9461/BotOS' &&
       github.actor == 'ahmed9461' &&
-      github.ref == 'refs/heads/feat/rich-chat-polish' &&
+      github.ref == 'refs/heads/feat/media-profiles-streaming' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -38,11 +38,12 @@ jobs:
     needs: request
     if: needs.request.outputs.enabled == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ needs.request.outputs.source }}
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
         with:
@@ -68,9 +69,18 @@ jobs:
       - name: Verify native provenance and prepare build tools without application secrets
         run: |
           python3 scripts/check_tdlib_contract.py
+          python3 scripts/check_rich_coverage.py
           python3 -m unittest discover -s scripts/tests -v
           bash scripts/install_android_sdk.sh 'platforms;android-37.0' 'build-tools;36.0.0' > /tmp/botos-owner-sdk.txt 2>&1 || { tail -n 30 /tmp/botos-owner-sdk.txt; exit 1; }
           gradle --no-daemon --no-build-cache --no-configuration-cache wrapper --gradle-version 9.6.1 --distribution-type bin --gradle-distribution-sha256-sum 9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14
+      - name: Build exact 0.4 owner baseline with temporary CI signer and no account configuration
+        run: |
+          baseline="$RUNNER_TEMP/botos-owner-baseline"
+          mkdir -p "$baseline/native/output"
+          git archive 84ff6ef85a5185f0fee0b955b8ff13009dbd5b33 | tar -x -C "$baseline"
+          cp -a native/output/. "$baseline/native/output/"
+          (cd "$baseline" && "$GITHUB_WORKSPACE/gradlew" --no-daemon --no-build-cache --no-configuration-cache --console=plain :app:assembleOwnerPreview)
+          python3 scripts/verify_owner_baseline.py "$baseline/app/build/outputs/apk/ownerPreview"
       - name: Build configured non-debuggable preview, test consent, and seal private delivery
         env:
           BOTOS_TELEGRAM_API_ID: ${{ secrets.BOTOS_TELEGRAM_API_ID }}
@@ -78,6 +88,7 @@ jobs:
           BOTOS_REQUIRE_TELEGRAM_CONFIG: 'true'
           BOTOS_DEVICE_APP_TASK: ':app:connectedOwnerPreviewAndroidTest'
           BOTOS_VERIFY_INPLACE_UPDATE: 'true'
+          BOTOS_PREVIOUS_OWNER_FOLDER: ${{ runner.temp }}/botos-owner-baseline/app/build/outputs/apk/ownerPreview
           BOTOS_TESTED_SOURCE: ${{ needs.request.outputs.source }}
           BOTOS_INTEGRATION_RUN: ${{ needs.request.outputs.run_id }}
         run: |
@@ -100,4 +111,4 @@ jobs:
           retention-days: 7
       - name: Remove generated configuration and private working files
         if: always()
-        run: rm -rf app/build .gradle/configuration-cache diagnostics "$RUNNER_TEMP/botos-owner"
+        run: rm -rf app/build .gradle/configuration-cache diagnostics "$RUNNER_TEMP/botos-owner" "$RUNNER_TEMP/botos-owner-baseline"
