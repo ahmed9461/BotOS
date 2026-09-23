@@ -1,5 +1,9 @@
 # الاختبارات والأدلة — BotOS
 
+## 24 سبتمبر 2026 — CI90 بعد تثبيت بيئة توقيع المحاكي
+
+[CI90/35919623482](https://github.com/ahmed9461/BotOS/actions/runs/35919623482) على `0a7cb2d854ba2e7117268997026e1b0e7926852b` نجح بعد فصل Android user/home المؤقت للمحاكي عن Gradle. حزمة BotOS-runtime-checks-90/10777176724 طابقت SHA256 `a92f4b9ff858fa3674dea8a79ef840b5d358dbc3ae539d309a580495b91365dd`. XML: 105 JVM +8 native +77 app بصفر فشل/خطأ/تخطٍ؛ 21 لقطة، روجعت outgoing-voice-dark-ar، وIME gap=6.095238dp. lint التطبيق 0 أخطاء/36 تحذيرًا والمحرك 0/0؛ native `accountUsed=false`. اختبار Python الجديد لحفظ بيئة Gradle اجتاز في CI؛ **اختبار ownerPreview الخاص لم يعمل بعد على هذا المصدر**. الطلب الجديد يشير إلى commit وتشغيل CI90 فقط.
+
 ## 23 سبتمبر 2026 — owner delivery الأول توقف بعد نجاح الترقية
 
 [owner delivery 35917995670](https://github.com/ahmed9461/BotOS/actions/runs/35917995670) قبل طلب CI88، وبنى baseline 0.4 بلا إعداد حساب. داخل خطوة المالك نجح probe الفعلي `owner_upgrade_0.4_to_0.5=passed` على محاكي بشهادة CI مؤقتة، أي ثبّت النسختين بلا uninstall وبقي ملف الاختبار والتفضيلات. بعده فشل `connectedOwnerPreviewAndroidTest` عند إعادة تغليف Gradle للحزمة بـ`INSTALL_FAILED_UPDATE_INCOMPATIBLE`: تغير سياق Android user/home بين بناء APK وتشغيل الاختبار فأصبح توقيع إعادة الحزم مختلفًا. **لا تقرير startup ناجح ولا CMS ولا APK مهيأ مسلّم من هذا التشغيل.** خطة التصحيح في المهمة 0007-E؛ طلب CI88 القديم عُطّل قبل مصدر جديد.
