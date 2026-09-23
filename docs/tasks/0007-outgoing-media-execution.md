@@ -6,6 +6,12 @@
 
 CI64 / 35800651504 اجتاز على المصدر المذكور. قُرئت حزمة BotOS-runtime-checks-64: **96 JVM + 8 native + 49 app** بلا فشل/خطأ/تخطي، وفجوة IME = 6.095238dp. روجعت لقطتا received-video-ar وreceived-webm-ar، وكلتاهما من عارض الإنتاج بعد onRenderedFirstFrame. هذا يغلق C ضمن الترميزات الاصطناعية المختبرة فقط، ولا يعني دعم كل فيديو على كل هاتف.
 
+## checkpoint بعد CI68 — قبل شريحة التخزين
+
+المصدر `6e998eb9b4168ef003435c050dfb868b45f2bfc8` اجتاز CI68/35875429273: 100JVM + 8native + 49app، وكل XML بصفر فشل/خطأ/تخطي. قرئت حزمة runtime-checks المطابقة SHA256 `fa29c57fd1f74a615d8c7531a1d57d8c15ca1c7f72ef0cba23735a1c8fd401e1`. لذلك لا تعاد D1 من الصفر.
+
+المراجعة بعد الدليل وجدت حالتين يجب إغلاقهما **قبل** المخزن: (1) نتيجة `updateMessageSendSucceeded/Failed` قد تسبق رد `sendMessage`؛ يجب حفظها مؤقتًا بمفتاح temporary id ثم ربطها عند ظهور `sending_id`، من دون إعادة إرسال. (2) recovery probe يجب أن يطابق userId و`generation` من `ChatKey.account`، لا userId وحده. بعد اختبار هاتين الحالتين تبدأ شريحة الاحتفاظ: `OutgoingMediaStore` تحت الجذر الخاص، ثم `OutgoingUploadJournal` ذري مكتوب قبل RPC. لا UI ولا ميكروفون ضمن هذه الشريحة.
+
 ## نطاق D الفعلي
 
 1. CaptureTarget عام محدود من BotConversations: معرّف الحساب/جيله وChatKey/chatId فقط بعد READY. لا RPC أو ReadyAccount يُكشف للواجهة.
