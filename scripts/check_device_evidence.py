@@ -12,7 +12,7 @@ destination = root / 'diagnostics/ui/screenshots'
 destination.mkdir(parents=True, exist_ok=True)
 required = ['appearance-light-ar.png', 'appearance-dark-ar.png', 'appearance-restored-ar.png',
             'workspace-ar.png', 'keyboard-ar.png', 'library-ar.png', 'editor-ar.png', 'account-unconfigured-ar.png',
-            'rich-chat-light-ar.png', 'rich-chat-dark-ar.png', 'rich-chat-switcher-ar.png', 'avatars-library-ar.png', 'streaming-reply-ar.png', 'received-media-light-ar.png', 'received-media-dark-ar.png', 'received-sticker-ar.png', 'received-video-ar.png', 'received-webm-ar.png', 'outgoing-preview-light-ar.png', 'outgoing-preview-dark-ar.png', 'keyboard-gap.txt']
+            'rich-chat-light-ar.png', 'rich-chat-dark-ar.png', 'rich-chat-switcher-ar.png', 'avatars-library-ar.png', 'streaming-reply-ar.png', 'received-media-light-ar.png', 'received-media-dark-ar.png', 'received-sticker-ar.png', 'received-video-ar.png', 'received-webm-ar.png', 'outgoing-preview-light-ar.png', 'outgoing-preview-dark-ar.png', 'outgoing-voice-dark-ar.png', 'keyboard-gap.txt']
 for name in required:
     matches = [p for p in outputs.rglob(name) if p.is_file() and 'additional_output' in str(p)]
     if len(matches) != 1:
@@ -34,7 +34,7 @@ for name in required:
     shutil.copyfile(matches[0], destination / name)
 reports = list((outputs / 'androidTest-results').rglob('TEST-*.xml'))
 suites = [ET.parse(path).getroot() for path in reports]
-assert sum(int(s.get('tests', 0)) for s in suites) == 70, 'Expected 62 prior app cases and 8 attachment preparation/preview cases'
+assert sum(int(s.get('tests', 0)) for s in suites) == 76, 'Expected 70 prior app cases and six voice recording/session cases'
 assert all(int(s.get(k, 0)) == 0 for s in suites for k in ('failures', 'errors', 'skipped')), 'App device test did not pass'
 outgoing_cases = {case.get('name') for suite in suites for case in suite.iter('testcase')
                   if case.get('classname') == 'com.ahmed9461.botos.OutgoingRetentionTest'}
@@ -69,6 +69,17 @@ assert preparation_cases == {
 }, 'Expected all four attachment preparation cases'
 assert any(case.get('name') == 'previewShowsActualPixelsTargetCaptionAndCancellationInLightAndDarkRtl'
            for suite in suites for case in suite.iter('testcase')), 'Expected preview and cancellation UI case'
+voice_cases = {case.get('name') for suite in suites for case in suite.iter('testcase')
+               if case.get('classname') == 'com.ahmed9461.botos.media.OutgoingVoiceSessionTest'}
+assert voice_cases == {
+    'permissionDenialAndBotChangeNeverStartCapture',
+    'recordedM4aIsPreviewedThenOneDurableVoiceSendAndFinalRelease',
+    'botSwitchAfterRecordingDropsRawClipWithoutStagingOrSending',
+    'failedStopOrExplicitAbortCannotLeaveAQueuedVoice',
+    'emulatorMicrophoneRecordsValidatedAacMonoAndAbortRemovesRawFile',
+}, 'Expected all five microphone and voice session cases'
+assert any(case.get('name') == 'voiceDialogShowsTargetTimerStopAndCancellationInDarkRtl'
+           for suite in suites for case in suite.iter('testcase')), 'Expected voice dialog and cancellation UI case'
 assert any(case.get('name') == 'attachmentMenuOffersOnlyChosenKindsAndDoesNotSendOnOpening'
            for suite in suites for case in suite.iter('testcase')), 'Expected live composer attachment menu case'
-print('All twenty device screenshots, seventy app tests and keyboard measurement verified.')
+print('All twenty-one device screenshots, seventy-six app tests and keyboard measurement verified.')

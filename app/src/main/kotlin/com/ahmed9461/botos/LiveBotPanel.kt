@@ -213,6 +213,7 @@ private fun LiveComposer(
                     AttachmentKind.PHOTO to R.string.outgoing_choose_photo,
                     AttachmentKind.VIDEO to R.string.outgoing_choose_video,
                     AttachmentKind.AUDIO to R.string.outgoing_choose_audio,
+                    AttachmentKind.VOICE to R.string.outgoing_record_voice,
                     AttachmentKind.DOCUMENT to R.string.outgoing_choose_file,
                 ).forEach { (kind, label) ->
                     DropdownMenuItem(text = { Text(stringResource(label)) },

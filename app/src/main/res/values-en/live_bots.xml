@@ -32,6 +32,13 @@
     <string name="outgoing_choose_photo">Photo</string>
     <string name="outgoing_choose_video">Video</string>
     <string name="outgoing_choose_audio">Audio</string>
+    <string name="outgoing_record_voice">Record voice message</string>
+    <string name="outgoing_recording">Recording</string>
+    <string name="outgoing_record_starting">Preparing to record…</string>
+    <string name="outgoing_record_finishing">Saving recording…</string>
+    <string name="outgoing_record_stop">Stop and preview</string>
+    <string name="outgoing_microphone_denied">Allow microphone access to record a voice message.</string>
+    <string name="outgoing_recording_failed">Couldn't save the recording. Try a longer recording.</string>
     <string name="outgoing_choose_file">File</string>
     <string name="outgoing_preview">Attachment preview</string>
     <string name="outgoing_to">To @%1$s</string>

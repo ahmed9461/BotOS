@@ -68,8 +68,13 @@ class LiveBotPanelTest {
         ui.onNodeWithTag("outgoing-option-photo").assertIsDisplayed()
         ui.onNodeWithTag("outgoing-option-video").assertIsDisplayed()
         ui.onNodeWithTag("outgoing-option-audio").assertIsDisplayed()
+        ui.onNodeWithTag("outgoing-option-voice").assertIsDisplayed()
         ui.onNodeWithTag("outgoing-option-document").performClick()
         ui.runOnIdle { assertEquals(AttachmentKind.DOCUMENT, chosen) }
+        ui.onNodeWithTag("outgoing-preview").assertDoesNotExist()
+        ui.onNodeWithTag("outgoing-add").performClick()
+        ui.onNodeWithTag("outgoing-option-voice").performClick()
+        ui.runOnIdle { assertEquals(AttachmentKind.VOICE, chosen) }
         ui.onNodeWithTag("outgoing-preview").assertDoesNotExist()
     }
     @Test fun messageButtonsRenderBelowCompactBubbleAndMetadataStaysInsideBubble() {

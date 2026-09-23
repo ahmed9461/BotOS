@@ -10,11 +10,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -87,5 +84,29 @@ class OutgoingAttachmentUiTest {
         ui.onNodeWithTag("outgoing-preview").assertDoesNotExist()
         ui.runOnIdle { assertTrue(caption.isNotEmpty()); assertTrue(sends == 0) }
         image.recycle()
+    }
+
+    @Test fun voiceDialogShowsTargetTimerStopAndCancellationInDarkRtl() {
+        val target = AttachmentTarget(ChatKey("42:3", "100:7"), 100, 3, 7, "fixture_bot")
+        var phase by mutableStateOf(VoicePhase.RECORDING)
+        var shown by mutableStateOf(true)
+        var stopped = 0
+        ui.setContent {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                BotOsTheme(ThemeMode.DARK, true) {
+                    if (shown) OutgoingVoiceDialog(VoiceUiState(target, phase, 12),
+                        { stopped++; phase = VoicePhase.FINISHING }, { shown = false })
+                }
+            }
+        }
+        ui.onNodeWithTag("outgoing-voice").assertIsDisplayed()
+        ui.onNodeWithTag("outgoing-voice-timer").assertIsDisplayed()
+        ui.onNodeWithTag("outgoing-voice-stop").assertIsEnabled()
+        screenshot("outgoing-voice-dark-ar")
+        ui.onNodeWithTag("outgoing-voice-stop").performClick()
+        ui.onNodeWithTag("outgoing-voice-stop").assertIsNotEnabled()
+        ui.onNodeWithTag("outgoing-voice-cancel").performClick()
+        ui.onNodeWithTag("outgoing-voice").assertDoesNotExist()
+        ui.runOnIdle { assertTrue(stopped == 1) }
     }
 }

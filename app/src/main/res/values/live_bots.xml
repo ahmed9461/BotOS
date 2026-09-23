@@ -32,6 +32,13 @@
     <string name="outgoing_choose_photo">صورة</string>
     <string name="outgoing_choose_video">فيديو</string>
     <string name="outgoing_choose_audio">صوت</string>
+    <string name="outgoing_record_voice">تسجيل رسالة صوتية</string>
+    <string name="outgoing_recording">جارٍ التسجيل</string>
+    <string name="outgoing_record_starting">جارٍ تجهيز التسجيل…</string>
+    <string name="outgoing_record_finishing">جارٍ حفظ التسجيل…</string>
+    <string name="outgoing_record_stop">إيقاف ومعاينة</string>
+    <string name="outgoing_microphone_denied">اسمح باستخدام الميكروفون لتسجيل رسالة صوتية.</string>
+    <string name="outgoing_recording_failed">تعذر حفظ التسجيل. حاول تسجيل مقطع أطول.</string>
     <string name="outgoing_choose_file">ملف</string>
     <string name="outgoing_preview">معاينة المرفق</string>
     <string name="outgoing_to">إلى @%1$s</string>

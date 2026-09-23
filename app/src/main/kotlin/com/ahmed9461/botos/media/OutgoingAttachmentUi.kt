@@ -1,6 +1,8 @@
 package com.ahmed9461.botos.media
 
 import android.content.ActivityNotFoundException
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -35,13 +37,27 @@ internal fun OutgoingAttachmentHost(chat: ChatKey?, vm: OutgoingAttachmentViewMo
     val caption by vm.caption.collectAsStateWithLifecycle()
     val notice by vm.notice.collectAsStateWithLifecycle()
     val monitor by vm.monitor.collectAsStateWithLifecycle()
+    val voice by vm.voice.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current
+    DisposableEffect(lifecycle, vm) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) vm.cancelVoice()
+        }
+        lifecycle.lifecycle.addObserver(observer)
+        onDispose { lifecycle.lifecycle.removeObserver(observer); vm.cancelVoice() }
+    }
     val photo = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia(), vm::picked)
     val video = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia(), vm::picked)
     val audio = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument(), vm::picked)
     val file = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument(), vm::picked)
+    val microphone = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission(), vm::voicePermission)
     val target = (LocalContext.current.applicationContext as com.ahmed9461.botos.BotOsApplication)
         .telegramUploads.captureTarget()
     val visible = target?.takeIf { it.chat == chat }
+    LaunchedEffect(voice?.target, visible) {
+        if (voice != null && voice?.target != visible) vm.cancelVoice()
+    }
     val records = monitor.records.filter { visible != null && it.accountKey == visible.chat.account && it.chatId == visible.chatId }
     val status = when {
         monitor.storageError -> R.string.outgoing_unavailable
@@ -51,21 +67,61 @@ internal fun OutgoingAttachmentHost(chat: ChatKey?, vm: OutgoingAttachmentViewMo
         else -> notice
     }
     val onAttach: (AttachmentKind) -> Unit = { kind ->
-        if (vm.begin(kind)) try {
+        if (kind == AttachmentKind.VOICE) {
+            if (vm.requestVoice()) try {
+                if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    vm.voicePermission(true)
+                } else microphone.launch(Manifest.permission.RECORD_AUDIO)
+            } catch (_: Exception) { vm.voicePermission(false) }
+        } else if (vm.begin(kind)) try {
             when (kind) {
                 AttachmentKind.PHOTO -> photo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 AttachmentKind.VIDEO -> video.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
                 AttachmentKind.AUDIO -> audio.launch(arrayOf("audio/*"))
                 AttachmentKind.DOCUMENT -> file.launch(arrayOf("*/*"))
-                AttachmentKind.VOICE -> vm.pickerFailed()
+                AttachmentKind.VOICE -> Unit
             }
         } catch (_: ActivityNotFoundException) { vm.pickerFailed() }
         catch (_: SecurityException) { vm.pickerFailed() }
     }
-    content(visible != null && !busy && preview == null, onAttach, if (visible == null) null else status)
+    content(visible != null && !busy && preview == null && voice == null, onAttach,
+        if (visible == null) null else status)
+    voice?.takeIf { it.target == visible && it.phase != VoicePhase.PERMISSION }?.let { recording ->
+        OutgoingVoiceDialog(recording, vm::stopVoice, vm::cancelVoice)
+    }
     preview?.takeIf { it.target.chat == chat && it.target == visible }?.let { outgoing ->
         OutgoingPreviewDialog(outgoing, caption, busy, vm::editCaption, vm::send, vm::cancel)
     }
+}
+
+@Composable
+internal fun OutgoingVoiceDialog(state: VoiceUiState, onStop: () -> Unit, onCancel: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.outgoing_record_voice)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.outgoing_to, state.target.username),
+                    style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(when (state.phase) {
+                    VoicePhase.STARTING -> R.string.outgoing_record_starting
+                    VoicePhase.FINISHING -> R.string.outgoing_record_finishing
+                    else -> R.string.outgoing_recording
+                }), style = MaterialTheme.typography.bodyMedium)
+                Text("%02d:%02d".format(state.seconds / 60, state.seconds % 60),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.testTag("outgoing-voice-timer"))
+                if (state.phase == VoicePhase.STARTING || state.phase == VoicePhase.FINISHING) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onStop, enabled = state.phase == VoicePhase.RECORDING,
+            modifier = Modifier.testTag("outgoing-voice-stop")) { Text(stringResource(R.string.outgoing_record_stop)) } },
+        dismissButton = { TextButton(onClick = onCancel,
+            modifier = Modifier.testTag("outgoing-voice-cancel")) { Text(stringResource(R.string.cancel)) } },
+        modifier = Modifier.testTag("outgoing-voice"),
+    )
 }
 
 @Composable
@@ -90,7 +146,8 @@ internal fun OutgoingPreviewDialog(preview: OutgoingPreview, caption: String, bu
                 preview.image?.let { bitmap -> Image(bitmap.asImageBitmap(), stringResource(kind),
                     Modifier.fillMaxWidth().heightIn(max = 150.dp).testTag("outgoing-image"),
                     contentScale = ContentScale.Fit) }
-                if (preview.attachment.kind == AttachmentKind.AUDIO) AudioAttachmentPreview(preview.staged.path)
+                if (preview.attachment.kind == AttachmentKind.AUDIO ||
+                    preview.attachment.kind == AttachmentKind.VOICE) AudioAttachmentPreview(preview.staged.path)
                 if (preview.fileFallback) Text(stringResource(R.string.outgoing_as_file),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(value = caption, onValueChange = onCaption, enabled = !busy,
@@ -127,7 +184,7 @@ private fun AudioAttachmentPreview(path: String) {
     TextButton(onClick = {
         try {
             val player = playback ?: LocalMediaPlayback(context,
-                DecodedMedia.Playback(File(path), "audio/mpeg")).also { playback = it }
+                DecodedMedia.Playback(File(path), "audio/mp4")).also { playback = it }
             if (player.player.isPlaying) { player.player.pause(); playing = false }
             else { player.play(); playing = true }
         } catch (_: Exception) { playback?.close(); playback = null; playing = false }
