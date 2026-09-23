@@ -21,7 +21,7 @@ data class StagedOutgoingMedia(val id: String, val path: String, val bytes: Long
 class OutgoingMediaStore(private val directory: File) {
     private val mutex = Mutex()
 
-    suspend fun stage(open: () -> InputStream): StagedOutgoingMedia = withContext(Dispatchers.IO) {
+    suspend fun stage(fileName: String? = null, open: () -> InputStream): StagedOutgoingMedia = withContext(Dispatchers.IO) {
         mutex.withLock {
             prepare()
             val files = mediaFiles()
@@ -30,7 +30,7 @@ class OutgoingMediaStore(private val directory: File) {
             if (used >= MAX_TOTAL_BYTES) throw IOException("Outgoing attachment storage limit")
             val id = UUID.randomUUID().toString().replace("-", "")
             val partial = File(directory, "$id.part")
-            val complete = File(directory, "$id.media")
+            val complete = File(directory, fileName?.let { "$id-${safeFileName(it)}" } ?: "$id.media")
             if (partial.exists() || complete.exists()) throw IOException("Attachment identifier collision")
             try {
                 var copied = 0L
@@ -63,7 +63,7 @@ class OutgoingMediaStore(private val directory: File) {
     suspend fun resolve(id: String): StagedOutgoingMedia = withContext(Dispatchers.IO) {
         mutex.withLock {
             validateId(id)
-            val file = File(directory, "$id.media")
+            val file = retainedFile(id) ?: throw IOException("Retained attachment unavailable")
             if (!file.isFile || Files.isSymbolicLink(file.toPath()) ||
                 file.canonicalFile.parentFile != directory.canonicalFile ||
                 file.length() !in 1..MAX_FILE_BYTES) throw IOException("Retained attachment unavailable")
@@ -71,11 +71,21 @@ class OutgoingMediaStore(private val directory: File) {
         }
     }
 
+    internal suspend fun retainedIds(): Set<String> = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            if (!directory.exists()) return@withLock emptySet()
+            val files = mediaFiles()
+            val ids = files.map { it.name.take(32) }
+            if (ids.size != ids.toSet().size) throw IOException("Ambiguous retained attachment")
+            ids.toSet()
+        }
+    }
+
     /** Only the journal owner may request deletion after verifying the record state. */
     internal suspend fun remove(id: String) = withContext(Dispatchers.IO) {
         mutex.withLock {
             validateId(id)
-            val file = File(directory, "$id.media")
+            val file = retainedFile(id) ?: return@withLock
             if (Files.isSymbolicLink(file.toPath()) || file.canonicalFile.parentFile != directory.canonicalFile) {
                 throw IOException("Invalid retained attachment")
             }
@@ -91,6 +101,14 @@ class OutgoingMediaStore(private val directory: File) {
         }
     }
 
+    private fun retainedFile(id: String): File? {
+        val matches = directory.listFiles().orEmpty().filter {
+            it.name == "$id.media" || (it.name.startsWith("$id-") && it.name.matches(MEDIA_NAME))
+        }
+        if (matches.size > 1) throw IOException("Ambiguous retained attachment")
+        return matches.singleOrNull()
+    }
+
     private fun mediaFiles(): List<File> = directory.listFiles().orEmpty().filter { it.name.matches(MEDIA_NAME) }.also { files ->
         if (files.any { !it.isFile || Files.isSymbolicLink(it.toPath()) || it.length() !in 1..MAX_FILE_BYTES }) {
             throw IOException("Invalid retained attachment")
@@ -103,8 +121,16 @@ class OutgoingMediaStore(private val directory: File) {
         const val MAX_FILES = 32
         private val ID = Regex("[a-f0-9]{32}")
         private val PART_NAME = Regex("[a-f0-9]{32}\\.part")
-        private val MEDIA_NAME = Regex("[a-f0-9]{32}\\.media")
+        private val MEDIA_NAME = Regex("[a-f0-9]{32}(\\.media|-[\\p{L}\\p{N} ._()\\-]{1,80})")
         internal fun validateId(id: String) { require(ID.matches(id)) }
+        private fun safeFileName(value: String): String {
+            val name = value.substringAfterLast('/').substringAfterLast('\\')
+                .filter { it.isLetterOrDigit() || it in " ._-()" }
+                .trim(' ', '.')
+                .take(80)
+                .trimEnd(' ', '.')
+            return name.takeIf { it.isNotBlank() } ?: "attachment.bin"
+        }
         fun defaultDirectory(noBackupFilesDir: File) = File(noBackupFilesDir, "telegram/main/files/botos_outgoing")
     }
 }

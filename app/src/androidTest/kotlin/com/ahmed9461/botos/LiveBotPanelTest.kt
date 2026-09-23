@@ -16,6 +16,7 @@ import com.ahmed9461.botos.design.BotOsTheme
 import com.ahmed9461.botos.model.*
 import com.ahmed9461.botos.telegram.runtime.ConversationState
 import com.ahmed9461.botos.telegram.runtime.ConversationStatus
+import com.ahmed9461.botos.telegram.runtime.AttachmentKind
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -52,6 +53,24 @@ class LiveBotPanelTest {
         ui.runOnIdle { assertEquals(0, starts) }
         ui.onNodeWithTag("live-start").performClick()
         ui.runOnIdle { assertEquals(1, starts) }
+    }
+    @Test fun attachmentMenuOffersOnlyChosenKindsAndDoesNotSendOnOpening() {
+        val key = ChatKey("fixture", "100")
+        var chosen: AttachmentKind? = null
+        ui.setContent {
+            BotOsTheme(ThemeMode.LIGHT, true) {
+                LiveBotPanel(ConversationState("fixture_bot", ConversationStatus.READY, MessageTimeline(key)),
+                    "", {}, {}, {}, {}, {}, {}, {}, {}, {},
+                    attachmentEnabled = true, onAttach = { chosen = it })
+            }
+        }
+        ui.onNodeWithTag("outgoing-add").performClick()
+        ui.onNodeWithTag("outgoing-option-photo").assertIsDisplayed()
+        ui.onNodeWithTag("outgoing-option-video").assertIsDisplayed()
+        ui.onNodeWithTag("outgoing-option-audio").assertIsDisplayed()
+        ui.onNodeWithTag("outgoing-option-document").performClick()
+        ui.runOnIdle { assertEquals(AttachmentKind.DOCUMENT, chosen) }
+        ui.onNodeWithTag("outgoing-preview").assertDoesNotExist()
     }
     @Test fun messageButtonsRenderBelowCompactBubbleAndMetadataStaysInsideBubble() {
         val key = ChatKey("fixture", "100")

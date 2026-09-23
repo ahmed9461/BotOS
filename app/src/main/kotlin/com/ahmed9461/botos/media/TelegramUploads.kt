@@ -14,6 +14,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.security.SecureRandom
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +49,7 @@ class TelegramUploads(
     private val scope = CoroutineScope(applicationScope.coroutineContext + Dispatchers.IO)
     private val queueLock = Mutex()
     private val random = SecureRandom()
+    private val storageReady = CompletableDeferred<Boolean>()
     private val _state = MutableStateFlow(UploadMonitorState())
     val state: StateFlow<UploadMonitorState> = _state.asStateFlow()
 
@@ -58,20 +60,34 @@ class TelegramUploads(
                 if (gateway.accountKey.value == event.accountKey) guarded { applyEvent(event) }
             }
         }
-        scope.launch { guarded { refresh() } }
+        scope.launch {
+            try {
+                journal.discardOrphanPreviews()
+                refresh()
+                storageReady.complete(true)
+            } catch (cancelled: CancellationException) { storageReady.cancel(); throw cancelled }
+            catch (_: Exception) {
+                _state.value = _state.value.copy(storageError = true)
+                storageReady.complete(false)
+            }
+        }
         scope.launch {
             gateway.accountKey.collectLatest { key -> if (key != null) guarded { recover(key) } }
         }
     }
 
     fun captureTarget(): AttachmentTarget? = gateway.captureAttachmentTarget()
-    suspend fun stage(open: () -> InputStream): StagedOutgoingMedia = media.stage(open)
+    suspend fun stage(fileName: String? = null, open: () -> InputStream): StagedOutgoingMedia {
+        if (!storageReady.await()) throw IOException("Attachment journal unavailable")
+        return media.stage(fileName, open)
+    }
     suspend fun discardPreview(staged: StagedOutgoingMedia) = journal.discardPreview(staged)
 
     /** Queued means durably held before RPC; it never claims Telegram delivery. */
     suspend fun queue(target: AttachmentTarget, staged: StagedOutgoingMedia,
         attachment: PreparedAttachment, caption: String): UploadQueueResult = withContext(Dispatchers.IO) {
         queueLock.withLock {
+            if (!storageReady.await()) return@withLock UploadQueueResult.Unavailable
             if (gateway.captureAttachmentTarget() != target || gateway.accountKey.value != target.chat.account) {
                 return@withLock UploadQueueResult.TargetChanged
             }

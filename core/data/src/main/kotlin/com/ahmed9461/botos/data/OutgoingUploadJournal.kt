@@ -113,6 +113,15 @@ class OutgoingUploadJournal(private val directory: File, private val media: Outg
         }
     }
 
+    /** A process-death preview has no journal entry and cannot have reached TDLib. */
+    suspend fun discardOrphanPreviews() = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val held = read().mapTo(mutableSetOf()) { it.mediaId }
+            val ids = media.retainedIds() // Validate all names before deleting any preview.
+            for (id in ids - held) media.remove(id)
+        }
+    }
+
     /** Deletion requires a confirmed final success. A failed deletion leaves the record intact. */
     suspend fun releaseSucceeded(id: String) = withContext(Dispatchers.IO) {
         mutex.withLock {

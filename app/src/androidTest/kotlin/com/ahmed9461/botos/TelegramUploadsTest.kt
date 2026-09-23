@@ -56,7 +56,7 @@ class TelegramUploadsTest {
         private val job = SupervisorJob()
         val scope = CoroutineScope(job + Dispatchers.Default)
         val uploads = TelegramUploads(gateway, media, journal, scope)
-        suspend fun staged() = media.stage { ByteArrayInputStream(byteArrayOf(1, 2, 3)) }
+        suspend fun staged() = uploads.stage { ByteArrayInputStream(byteArrayOf(1, 2, 3)) }
         override fun close() { job.cancel(); root.deleteRecursively() }
     }
 

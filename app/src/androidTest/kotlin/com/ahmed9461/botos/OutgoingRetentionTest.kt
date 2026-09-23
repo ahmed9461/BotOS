@@ -35,6 +35,46 @@ class OutgoingRetentionTest {
         } finally { dir.deleteRecursively() }
     }
 
+    @Test fun namedInputKeepsSafeExtensionAndLegacyFileStillResolves() = runBlocking<Unit> {
+        val dir = root()
+        try {
+            val media = OutgoingMediaStore(dir)
+            val old = media.stage { ByteArrayInputStream(byteArrayOf(1)) }
+            val named = media.stage("../عينة.pdf") { ByteArrayInputStream(byteArrayOf(2)) }
+            assertTrue(named.path.endsWith("-عينة.pdf"))
+            assertEquals(old, OutgoingMediaStore(dir).resolve(old.id))
+            assertEquals(named, OutgoingMediaStore(dir).resolve(named.id))
+            File(dir, "${named.id}.media").writeBytes(byteArrayOf(3))
+            assertThrows(IOException::class.java) { runBlocking { media.resolve(named.id) } }
+            assertThrows(IOException::class.java) { runBlocking { OutgoingUploadJournal(dir, media).discardPreview(named) } }
+            assertTrue(File(named.path).exists())
+        } finally { dir.deleteRecursively() }
+    }
+
+    @Test fun restartRemovesOnlyUnreservedPreviewAndKeepsUncertainUpload() = runBlocking<Unit> {
+        val dir = root()
+        try {
+            val media = OutgoingMediaStore(dir)
+            val orphan = media.stage("photo.jpg") { ByteArrayInputStream(byteArrayOf(1)) }
+            val held = media.stage("audio.m4a") { ByteArrayInputStream(byteArrayOf(2)) }
+            val journal = OutgoingUploadJournal(dir, media)
+            val record = journal.reserve(target, held, 918)
+            journal.beforeRpc(record.id)
+            journal.uncertain(record.id)
+            OutgoingUploadJournal(dir, OutgoingMediaStore(dir)).discardOrphanPreviews()
+            assertFalse(File(orphan.path).exists())
+            assertTrue(File(held.path).exists())
+            assertEquals(UploadStatus.UNKNOWN, journal.snapshot().single().status)
+            val ambiguous = media.stage("photo.jpg") { ByteArrayInputStream(byteArrayOf(3)) }
+            val ordinary = media.stage("photo.jpg") { ByteArrayInputStream(byteArrayOf(4)) }
+            File(dir, "${ambiguous.id}.media").writeBytes(byteArrayOf(5))
+            assertThrows(IOException::class.java) { runBlocking { journal.discardOrphanPreviews() } }
+            assertTrue(File(ambiguous.path).exists())
+            assertTrue(File(ordinary.path).exists())
+            assertTrue(File(held.path).exists())
+        } finally { dir.deleteRecursively() }
+    }
+
     @Test fun journalIsDurableBeforeRpcAndUnknownCannotBeDeletedOrSentTwice() = runBlocking<Unit> {
         val dir = root()
         try {
