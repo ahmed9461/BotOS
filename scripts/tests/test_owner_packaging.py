@@ -40,9 +40,10 @@ class OwnerPackagingTest(unittest.TestCase):
         self.update_report = self.root/'diagnostics/owner-update.json'
         self.update_report.parent.mkdir(parents=True)
         self.update_report.write_text(json.dumps({
-            'application_id': 'com.ahmed9461.botos.app', 'in_place_reinstall': 'passed',
+            'application_id': 'com.ahmed9461.botos.app', 'in_place_upgrade': 'passed',
+            'from_version': '0.4.0-preview', 'to_version': '0.5.0-preview',
             'private_file_preserved': True, 'preferences_preserved': True,
-            'uninstalled_between_installs': False, 'same_version_reinstall': True,
+            'uninstalled_between_installs': False, 'same_version_reinstall': False,
             'signer': 'temporary CI', 'owner_final_signer_device_test': False, 'account_used': False,
         }))
     def save_metadata(self, metadata=None):
@@ -116,7 +117,13 @@ class OwnerPackagingTest(unittest.TestCase):
         with self.assertRaises(ET.ParseError): module.validate_startup_report(self.report)
 
     def test_missing_or_failed_update_evidence_blocks_package(self):
-        self.update_report.write_text('{"in_place_reinstall":"failed"}')
+        self.update_report.write_text('{"in_place_upgrade":"failed"}')
+        with self.assertRaises(ValueError): self.package()
+        self.assertFalse(self.destination.exists())
+        old = json.loads(self.update_report.read_text())
+        old.update({'application_id': 'com.ahmed9461.botos.app', 'in_place_reinstall': 'passed',
+                    'same_version_reinstall': True})
+        self.update_report.write_text(json.dumps(old))
         with self.assertRaises(ValueError): self.package()
         self.assertFalse(self.destination.exists())
         self.update_report.unlink()

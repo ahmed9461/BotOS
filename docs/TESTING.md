@@ -1,5 +1,9 @@
 # الاختبارات والأدلة — BotOS
 
+## 23 سبتمبر 2026 — مصدر إصدار 0.5 على CI87
+
+[CI87/35913433566](https://github.com/ahmed9461/BotOS/actions/runs/35913433566) على `ef8fc65999a257b0f0100f214d3bb503119699cf` نجح بعد رفع الإصدار وحارس التسليم. حزمة BotOS-runtime-checks-87/10774886606 طابقت SHA256 `4bc8cada9df9b0a3a35823e279e7c52a959866ecb95a06b35375cda0eaf96073`. قرئت XML: 105 JVM و8 native و77 app، صفر فشل/خطأ/تخطٍ. 21 لقطة؛ روجعت outgoing-voice-dark-ar، وIME gap=6.095238dp. lint التطبيق 0 أخطاء/36 تحذيرًا، والمحرك 0/0؛ native `accountUsed=false`. بوابة owner delivery لم تعمل في هذا التشغيل؛ فحص 0.4→0.5 اللاحق يحتاج مصدرًا وCI جديدين.
+
 ## تجهيز مصدر0.5 قبل CI النهائي
 
 اختبارات Python المحددة `OwnerRequestTest` وحالتا `OwnerPackagingTest` للإصدار والتغليف نجحت محليًا 8/8 بعد تغيير حارس الفرع وversionCode5. هذا لا يثبت بناء Android أو owner delivery للمصدر الجديد. `delivery/request.json` معطل حتى اجتياز CI المطابق.

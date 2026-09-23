@@ -132,9 +132,10 @@ def locate_owner_apk(outputs: Path) -> Path:
 
 def validate_update_report(path: Path) -> None:
     expected = {
-        'application_id': 'com.ahmed9461.botos.app', 'in_place_reinstall': 'passed',
+        'application_id': 'com.ahmed9461.botos.app', 'in_place_upgrade': 'passed',
+        'from_version': '0.4.0-preview', 'to_version': '0.5.0-preview',
         'private_file_preserved': True, 'preferences_preserved': True,
-        'uninstalled_between_installs': False, 'same_version_reinstall': True,
+        'uninstalled_between_installs': False, 'same_version_reinstall': False,
         'signer': 'temporary CI', 'owner_final_signer_device_test': False, 'account_used': False,
     }
     if json.loads(path.read_text(encoding='utf-8')) != expected:
