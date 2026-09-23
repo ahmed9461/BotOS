@@ -1,5 +1,11 @@
 # الاختبارات والأدلة — BotOS
 
+## 24 سبتمبر 2026 — owner10 وAPK 0.5 الموقّع
+
+[owner delivery 35921701021](https://github.com/ahmed9461/BotOS/actions/runs/35921701021) نجح بمصدر CI90 `0a7cb2d854ba2e7117268997026e1b0e7926852b`. بنى baseline 0.4 من commit التسليم السابق قبل حقن إعدادات Telegram، ثم أثبت على محاكي جديد ترقية 0.4→0.5 بـ`adb install -r` دون uninstall، وبقاء ملف خاص وتفضيلات مصطنعة؛ `owner_upgrade_0.4_to_0.5=passed` بشهادة CI المؤقتة و`account_used=false`. اختبار OwnerBuildSmokeTest المتصل 1/1، والتغليف تحقق من التهيئة و`debuggable=false` وبوابة الموافقة وعدم إنشاء جلسة/استعمال حساب، ومن metadata والتوقيع والمحاذاة ومكتبتي ABI. لم تُنشر حزمة APK المهيأة مكشوفة. حزمة BotOS-owner-sealed-10/10777801768 طابقت SHA256 `1a078f4ebeb7e5f8f730e34fa0782a88c5cddc78dfe80994f72b3ff0707a0114`.
+
+فُكت CMS محليًا بمفتاح الاستعادة الموجود خارج Git؛ SHA256 للـCMS `a7e662deaaf7f2a8e415803b68fa05cef0dde31f6bc78a9a1052417847a21c90`. صُدّق provenance وتقارير startup وowner-update وبصمتا APK المؤقت وأداة apksigner. وُقّع APK النهائي بالـPKCS12 الأصلي: 91,034,525 بايت، SHA256 `30b1286f896bfaea0bda9aa9b2194c14dae015b248c3bc248929cc90dbf71745`. `apksigner verify --verbose --print-certs` نجح بتوقيع v2 وشهادة SHA256 `6530ae8d20d9324504418f2afa274fec2cd1dc289ce3bdf2c8176f3620e7deba`، وطابقت كل مداخل ZIP غير التوقيعية حزمة CI. تقرير تحقق بلا أسرار محفوظ بجانب APK خارج المستودع. **اختبار المحاكي استعمل شهادة CI المؤقتة؛ تثبيت APK بالتوقيع النهائي فوق 0.4 على هاتف المالك ودخول حسابه لم يُرصدا.**
+
 ## 24 سبتمبر 2026 — CI90 بعد تثبيت بيئة توقيع المحاكي
 
 [CI90/35919623482](https://github.com/ahmed9461/BotOS/actions/runs/35919623482) على `0a7cb2d854ba2e7117268997026e1b0e7926852b` نجح بعد فصل Android user/home المؤقت للمحاكي عن Gradle. حزمة BotOS-runtime-checks-90/10777176724 طابقت SHA256 `a92f4b9ff858fa3674dea8a79ef840b5d358dbc3ae539d309a580495b91365dd`. XML: 105 JVM +8 native +77 app بصفر فشل/خطأ/تخطٍ؛ 21 لقطة، روجعت outgoing-voice-dark-ar، وIME gap=6.095238dp. lint التطبيق 0 أخطاء/36 تحذيرًا والمحرك 0/0؛ native `accountUsed=false`. اختبار Python الجديد لحفظ بيئة Gradle اجتاز في CI؛ **اختبار ownerPreview الخاص لم يعمل بعد على هذا المصدر**. الطلب الجديد يشير إلى commit وتشغيل CI90 فقط.
