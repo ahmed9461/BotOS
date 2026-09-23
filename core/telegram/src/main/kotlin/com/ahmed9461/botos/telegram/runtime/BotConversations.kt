@@ -66,16 +66,23 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
     val state: StateFlow<ConversationState> = _state.asStateFlow()
     private val _uploadEvents = MutableSharedFlow<UploadEvent>(extraBufferCapacity = 64)
     val uploadEvents: SharedFlow<UploadEvent> = _uploadEvents.asSharedFlow()
+    private data class EarlyTerminal(val succeeded: Boolean, val messageId: Long)
     private val uploadSendingByTemporaryId = ConcurrentHashMap<Long, Int>()
+    private val earlyUploadTerminal = ConcurrentHashMap<Long, EarlyTerminal>()
     @Volatile private var binding: Binding? = null
     init {
         // Keep upload completion observation alive across bot-tab changes for the same ready account.
         engineScope.launch {
             account.ready.collectLatest { owner ->
                 uploadSendingByTemporaryId.clear()
+                earlyUploadTerminal.clear()
                 if (owner == null) return@collectLatest
                 val subscription = owner.rpc.observeUpdates(::observeUploadUpdate)
-                try { awaitCancellation() } finally { subscription.close(); uploadSendingByTemporaryId.clear() }
+                try { awaitCancellation() } finally {
+                    subscription.close()
+                    uploadSendingByTemporaryId.clear()
+                    earlyUploadTerminal.clear()
+                }
             }
         }
         engineScope.launch {
@@ -266,6 +273,20 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
             ?: fallbackSendingId?.takeIf { it > 0 } ?: return
         uploadSendingByTemporaryId[temporaryId] = pendingId
         _uploadEvents.tryEmit(UploadEvent.Pending(pendingId, temporaryId))
+        earlyUploadTerminal.remove(temporaryId)?.let { terminal ->
+            uploadSendingByTemporaryId.remove(temporaryId)
+            _uploadEvents.tryEmit(
+                if (terminal.succeeded) UploadEvent.Succeeded(pendingId, temporaryId, terminal.messageId)
+                else UploadEvent.Failed(pendingId, temporaryId),
+            )
+        }
+    }
+
+    private fun rememberEarlyTerminal(temporaryId: Long, terminal: EarlyTerminal) {
+        if (earlyUploadTerminal.size >= 128 && temporaryId !in earlyUploadTerminal) {
+            earlyUploadTerminal.keys.firstOrNull()?.let(earlyUploadTerminal::remove)
+        }
+        earlyUploadTerminal[temporaryId] = terminal
     }
 
     private fun observeUploadUpdate(update: JsonObject) {
@@ -273,14 +294,16 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
             "updateNewMessage" -> update.obj("message")?.let(::registerPendingUpload)
             "updateMessageSendSucceeded" -> {
                 val temporaryId = update.number("old_message_id") ?: return
-                val sendingId = uploadSendingByTemporaryId.remove(temporaryId) ?: return
                 val messageId = update.obj("message")?.number("id") ?: temporaryId
-                _uploadEvents.tryEmit(UploadEvent.Succeeded(sendingId, temporaryId, messageId))
+                val sendingId = uploadSendingByTemporaryId.remove(temporaryId)
+                if (sendingId == null) rememberEarlyTerminal(temporaryId, EarlyTerminal(true, messageId))
+                else _uploadEvents.tryEmit(UploadEvent.Succeeded(sendingId, temporaryId, messageId))
             }
             "updateMessageSendFailed" -> {
                 val temporaryId = update.number("old_message_id") ?: return
-                val sendingId = uploadSendingByTemporaryId.remove(temporaryId) ?: return
-                _uploadEvents.tryEmit(UploadEvent.Failed(sendingId, temporaryId))
+                val sendingId = uploadSendingByTemporaryId.remove(temporaryId)
+                if (sendingId == null) rememberEarlyTerminal(temporaryId, EarlyTerminal(false, temporaryId))
+                else _uploadEvents.tryEmit(UploadEvent.Failed(sendingId, temporaryId))
             }
         }
     }
@@ -294,8 +317,9 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
     ): UploadEvent? = withContext(engineDispatcher) {
         if (chatId == 0L || temporaryMessageId == 0L || sendingId <= 0) return@withContext null
         val expectedUserId = accountKey.substringBefore(':').toLongOrNull() ?: return@withContext null
+        val expectedGeneration = accountKey.substringAfter(':', "").toLongOrNull() ?: return@withContext null
         val owner = account.ready.value ?: return@withContext null
-        if (owner.userId != expectedUserId) return@withContext null
+        if (owner.userId != expectedUserId || owner.generation != expectedGeneration) return@withContext null
         val message = try {
             owner.rpc.request(TdJson.command("getMessage") {
                 put("chat_id", chatId)

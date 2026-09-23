@@ -242,13 +242,38 @@ class BotConversationsTest {
         }
     }
 
-    @Test fun recoveryProbeUsesKnownTemporaryMessageOnlyAndNeverResends() = runBlocking<Unit> {
+    @Test fun recoveryProbeRejectsWrongAccountGenerationBeforeNetworkAndNeverResends() = runBlocking<Unit> {
         Fixture().use { f ->
             f.connect(); f.open()
-            val result = f.live.inspectAttachment("42:99", 100, 10, 222)
+            val target = f.live.captureAttachmentTarget()!!
+            val wrongGeneration = target.chat.account.substringBefore(':') + ":" + (target.accountGeneration + 1)
+            val before = f.rpc.calls.size
+            val result = f.live.inspectAttachment(wrongGeneration, 100, 10, 222)
             assertNull(result)
+            assertEquals(before, f.rpc.calls.size)
             assertFalse(f.rpc.calls.any { it.type() == "sendMessage" && it.obj("options")?.number("sending_id") == 222L })
-            assertTrue(f.rpc.calls.any { it.type() == "getMessage" && it.number("message_id") == 10L })
+        }
+    }
+
+    @Test fun terminalUpdateBeforeSendResponseIsReconciledWithoutRetry() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.connect(); f.open()
+            val target = f.live.captureAttachmentTarget()!!
+            f.rpc.sending = {
+                val pending = wireMessage(-70, 100, outgoing = true).toMutableMap()
+                pending["sending_state"] = TdJson.command("messageSendingStatePending") { put("sending_id", 779) }
+                f.rpc.emit(TdJson.command("updateMessageSendSucceeded") {
+                    put("old_message_id", -70)
+                    put("message", wireMessage(701, 100, outgoing = true))
+                })
+                JsonObject(pending)
+            }
+            val terminal = async { withTimeout(5_000) { f.live.uploadEvents.first { it is UploadEvent.Succeeded && it.sendingId == 779 } } }
+            val result = f.live.sendAttachment(target,
+                PreparedAttachment("/private/file.jpg", AttachmentKind.PHOTO, 100, 10, 10), "", 779)
+            assertEquals(AttachmentSendResult.Pending(779, -70), result)
+            assertEquals(UploadEvent.Succeeded(779, -70, 701), terminal.await())
+            assertEquals(1, f.rpc.calls.count { it.type() == "sendMessage" && it.obj("options")?.number("sending_id") == 779L })
         }
     }
 
