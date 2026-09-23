@@ -283,7 +283,7 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
     }
 
     private fun rememberEarlyTerminal(temporaryId: Long, terminal: EarlyTerminal) {
-        if (earlyUploadTerminal.size >= 128 && temporaryId !in earlyUploadTerminal) {
+        if (earlyUploadTerminal.size >= 128 && !earlyUploadTerminal.containsKey(temporaryId)) {
             earlyUploadTerminal.keys.firstOrNull()?.let(earlyUploadTerminal::remove)
         }
         earlyUploadTerminal[temporaryId] = terminal
