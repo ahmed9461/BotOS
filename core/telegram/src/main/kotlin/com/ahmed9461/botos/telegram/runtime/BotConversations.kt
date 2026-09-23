@@ -1,6 +1,7 @@
 package com.ahmed9461.botos.telegram.runtime
 
 import com.ahmed9461.botos.model.*
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -27,6 +28,28 @@ data class ConversationState(
     override fun toString() = "ConversationState(status=$status, busy=$busy, issue=$issue)"
 }
 
+/** Stable target captured before opening a picker; never contains a secret or RPC handle. */
+data class AttachmentTarget(
+    val chat: ChatKey,
+    val chatId: Long,
+    val accountGeneration: Long,
+    val viewGeneration: Long,
+    val username: String,
+)
+
+sealed interface AttachmentSendResult {
+    data class Pending(val sendingId: Int, val temporaryMessageId: Long) : AttachmentSendResult
+    data class Uncertain(val sendingId: Int) : AttachmentSendResult
+    data object Rejected : AttachmentSendResult
+}
+
+sealed interface UploadEvent {
+    val sendingId: Int
+    data class Pending(override val sendingId: Int, val temporaryMessageId: Long) : UploadEvent
+    data class Succeeded(override val sendingId: Int, val temporaryMessageId: Long, val messageId: Long) : UploadEvent
+    data class Failed(override val sendingId: Int, val temporaryMessageId: Long) : UploadEvent
+}
+
 /** One active bot, bounded updates, and generation checks around every asynchronous boundary. */
 class BotConversations(private val account: AccountCoordinator, scope: CoroutineScope) {
     private val engineDispatcher = Dispatchers.Default.limitedParallelism(1)
@@ -41,8 +64,20 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
     private val selected = MutableStateFlow(Selection(null, 0))
     private val _state = MutableStateFlow(ConversationState())
     val state: StateFlow<ConversationState> = _state.asStateFlow()
+    private val _uploadEvents = MutableSharedFlow<UploadEvent>(extraBufferCapacity = 64)
+    val uploadEvents: SharedFlow<UploadEvent> = _uploadEvents.asSharedFlow()
+    private val uploadSendingByTemporaryId = ConcurrentHashMap<Long, Int>()
     @Volatile private var binding: Binding? = null
     init {
+        // Keep upload completion observation alive across bot-tab changes for the same ready account.
+        engineScope.launch {
+            account.ready.collectLatest { owner ->
+                uploadSendingByTemporaryId.clear()
+                if (owner == null) return@collectLatest
+                val subscription = owner.rpc.observeUpdates(::observeUploadUpdate)
+                try { awaitCancellation() } finally { subscription.close(); uploadSendingByTemporaryId.clear() }
+            }
+        }
         engineScope.launch {
             combine(account.ready, selected) { owner, selection -> owner to selection }.collectLatest { (owner, selection) ->
                 if (account.ready.value !== owner || selected.value != selection) return@collectLatest
@@ -161,6 +196,83 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
             }
         }
     }
+    /** Returns the exact currently verified bot target. A picker callback must present the same value before send. */
+    fun captureAttachmentTarget(): AttachmentTarget? {
+        val active = binding ?: return null
+        if (!valid(active) || active.faulted || _state.value.status != ConversationStatus.READY) return null
+        return AttachmentTarget(active.reducer.key, active.chatId, active.account.generation, active.selection.serial, active.selection.username ?: return null)
+    }
+
+    /** One-shot send. Timeout is deliberately uncertain and is never retried automatically. */
+    suspend fun sendAttachment(
+        expected: AttachmentTarget,
+        attachment: PreparedAttachment,
+        caption: String,
+        sendingId: Int,
+    ): AttachmentSendResult = withContext(engineDispatcher) {
+        if (sendingId <= 0) return@withContext AttachmentSendResult.Rejected
+        val active = binding ?: return@withContext AttachmentSendResult.Rejected
+        if (!matches(active, expected) || active.faulted || _state.value.status != ConversationStatus.READY || !active.operation.tryLock()) {
+            return@withContext AttachmentSendResult.Rejected
+        }
+        change(active) { it.copy(busy = true, issue = null) }
+        try {
+            val content = OutgoingMedia.content(attachment, caption)
+            val message = active.account.rpc.request(TdJson.command("sendMessage") {
+                put("chat_id", active.chatId)
+                put("options", TdJson.command("messageSendOptions") { put("sending_id", sendingId) })
+                put("input_message_content", content)
+            })
+            if (message.type() != "message") throw TdFailure(FailureKind.PROTOCOL)
+            if (!matches(active, expected)) return@withContext AttachmentSendResult.Rejected
+            active.reducer.add(message)
+            publish(active)
+            val temporaryId = message.number("id") ?: return@withContext AttachmentSendResult.Uncertain(sendingId)
+            registerPendingUpload(message, sendingId)
+            AttachmentSendResult.Pending(sendingId, temporaryId)
+        } catch (_: TimeoutCancellationException) {
+            change(active) { it.copy(issue = ConversationIssue.UNCERTAIN) }
+            AttachmentSendResult.Uncertain(sendingId)
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) {
+            change(active) { it.copy(issue = ConversationIssue.CONNECTION) }
+            AttachmentSendResult.Rejected
+        } finally {
+            change(active) { it.copy(busy = false) }
+            active.operation.unlock()
+        }
+    }
+
+    private fun matches(active: Binding, expected: AttachmentTarget): Boolean =
+        valid(active) && active.reducer.key == expected.chat && active.chatId == expected.chatId &&
+            active.account.generation == expected.accountGeneration && active.selection.serial == expected.viewGeneration &&
+            active.selection.username == expected.username
+
+    private fun registerPendingUpload(message: JsonObject, fallbackSendingId: Int? = null) {
+        val temporaryId = message.number("id") ?: return
+        val pendingId = message.obj("sending_state")?.number("sending_id")?.toInt()?.takeIf { it > 0 }
+            ?: fallbackSendingId?.takeIf { it > 0 } ?: return
+        uploadSendingByTemporaryId[temporaryId] = pendingId
+        _uploadEvents.tryEmit(UploadEvent.Pending(pendingId, temporaryId))
+    }
+
+    private fun observeUploadUpdate(update: JsonObject) {
+        when (update.type()) {
+            "updateNewMessage" -> update.obj("message")?.let(::registerPendingUpload)
+            "updateMessageSendSucceeded" -> {
+                val temporaryId = update.number("old_message_id") ?: return
+                val sendingId = uploadSendingByTemporaryId.remove(temporaryId) ?: return
+                val messageId = update.obj("message")?.number("id") ?: temporaryId
+                _uploadEvents.tryEmit(UploadEvent.Succeeded(sendingId, temporaryId, messageId))
+            }
+            "updateMessageSendFailed" -> {
+                val temporaryId = update.number("old_message_id") ?: return
+                val sendingId = uploadSendingByTemporaryId.remove(temporaryId) ?: return
+                _uploadEvents.tryEmit(UploadEvent.Failed(sendingId, temporaryId))
+            }
+        }
+    }
+
     fun select(username: String?) {
         val normalized = username?.let(BotNames::normalize)
         if (selected.value.username == normalized) return

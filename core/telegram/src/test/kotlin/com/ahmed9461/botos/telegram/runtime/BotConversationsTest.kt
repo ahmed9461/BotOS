@@ -193,4 +193,53 @@ class BotConversationsTest {
             assertEquals("مرحبا 🌚", (f.live.state.value.timeline!!.messages.single().blocks.first() as Block.Paragraph).text)
         }
     }
+    @Test fun capturedAttachmentTargetCannotSendAfterBotSwitch() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.connect(); f.open("alpha_bot")
+            val target = f.live.captureAttachmentTarget()!!
+            f.open("beta_bot")
+            val result = f.live.sendAttachment(target,
+                PreparedAttachment("/private/file.jpg", AttachmentKind.PHOTO, 100, 10, 10), "", 91)
+            assertEquals(AttachmentSendResult.Rejected, result)
+            assertFalse(f.rpc.calls.any { it.type() == "sendMessage" && it.obj("options")?.number("sending_id") == 91L })
+        }
+    }
+
+    @Test fun attachmentSendUsesExactSendingIdAndCompletionSurvivesBotSwitch() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.connect(); f.open("alpha_bot")
+            val target = f.live.captureAttachmentTarget()!!
+            f.rpc.sending = {
+                val raw = wireMessage(-50, 100, outgoing = true).toMutableMap()
+                raw["sending_state"] = TdJson.command("messageSendingStatePending") { put("sending_id", 777) }
+                JsonObject(raw)
+            }
+            val observed = async { withTimeout(5_000) { f.live.uploadEvents.first { it is UploadEvent.Succeeded } } }
+            val result = f.live.sendAttachment(target,
+                PreparedAttachment("/private/file.jpg", AttachmentKind.PHOTO, 100, 10, 10), "وصف", 777)
+            assertEquals(AttachmentSendResult.Pending(777, -50), result)
+            val call = f.rpc.calls.last { it.type() == "sendMessage" }
+            assertEquals(777L, call.obj("options")?.number("sending_id"))
+            assertEquals("وصف", call.obj("input_message_content")?.obj("caption")?.string("text"))
+            f.open("beta_bot")
+            f.rpc.emit(TdJson.command("updateMessageSendSucceeded") {
+                put("old_message_id", -50)
+                put("message", wireMessage(501, 100, outgoing = true))
+            })
+            assertEquals(UploadEvent.Succeeded(777, -50, 501), observed.await())
+        }
+    }
+
+    @Test fun attachmentTimeoutIsUncertainAndNeverRetried() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.connect(); f.open()
+            val target = f.live.captureAttachmentTarget()!!
+            f.rpc.sending = { withTimeout(1) { delay(50); wireMessage(-60) } }
+            val result = f.live.sendAttachment(target,
+                PreparedAttachment("/private/file.m4a", AttachmentKind.VOICE, 100, duration = 2), "", 778)
+            assertEquals(AttachmentSendResult.Uncertain(778), result)
+            assertEquals(1, f.rpc.calls.count { it.type() == "sendMessage" && it.obj("options")?.number("sending_id") == 778L })
+        }
+    }
+
 }
