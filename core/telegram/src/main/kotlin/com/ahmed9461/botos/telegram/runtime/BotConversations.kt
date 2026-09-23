@@ -44,14 +44,30 @@ sealed interface AttachmentSendResult {
 }
 
 sealed interface UploadEvent {
+    val accountKey: String
+    val chatId: Long
     val sendingId: Int
-    data class Pending(override val sendingId: Int, val temporaryMessageId: Long) : UploadEvent
-    data class Succeeded(override val sendingId: Int, val temporaryMessageId: Long, val messageId: Long) : UploadEvent
-    data class Failed(override val sendingId: Int, val temporaryMessageId: Long) : UploadEvent
+    data class Pending(override val accountKey: String, override val chatId: Long,
+        override val sendingId: Int, val temporaryMessageId: Long) : UploadEvent
+    data class Succeeded(override val accountKey: String, override val chatId: Long,
+        override val sendingId: Int, val temporaryMessageId: Long, val messageId: Long) : UploadEvent
+    data class Failed(override val accountKey: String, override val chatId: Long,
+        override val sendingId: Int, val temporaryMessageId: Long) : UploadEvent
+}
+
+/** Small account-scoped boundary for the process-owned upload coordinator. */
+interface AttachmentGateway {
+    val uploadEvents: SharedFlow<UploadEvent>
+    val accountKey: StateFlow<String?>
+    fun captureAttachmentTarget(): AttachmentTarget?
+    suspend fun sendAttachment(expected: AttachmentTarget, attachment: PreparedAttachment,
+        caption: String, sendingId: Int): AttachmentSendResult
+    suspend fun inspectAttachment(accountKey: String, chatId: Long, temporaryMessageId: Long,
+        sendingId: Int): UploadEvent?
 }
 
 /** One active bot, bounded updates, and generation checks around every asynchronous boundary. */
-class BotConversations(private val account: AccountCoordinator, scope: CoroutineScope) {
+class BotConversations(private val account: AccountCoordinator, scope: CoroutineScope) : AttachmentGateway {
     private val engineDispatcher = Dispatchers.Default.limitedParallelism(1)
     private val engineScope = CoroutineScope(scope.coroutineContext + engineDispatcher)
     private data class Selection(val username: String?, val serial: Long)
@@ -65,10 +81,14 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
     private val _state = MutableStateFlow(ConversationState())
     val state: StateFlow<ConversationState> = _state.asStateFlow()
     private val _uploadEvents = MutableSharedFlow<UploadEvent>(extraBufferCapacity = 64)
-    val uploadEvents: SharedFlow<UploadEvent> = _uploadEvents.asSharedFlow()
+    override val uploadEvents: SharedFlow<UploadEvent> = _uploadEvents.asSharedFlow()
+    override val accountKey: StateFlow<String?> = account.ready.map { owner ->
+        owner?.let { "${it.userId}:${it.generation}" }
+    }.stateIn(engineScope, SharingStarted.Eagerly, null)
     private data class EarlyTerminal(val succeeded: Boolean, val messageId: Long)
-    private val uploadSendingByTemporaryId = ConcurrentHashMap<Long, Int>()
-    private val earlyUploadTerminal = ConcurrentHashMap<Long, EarlyTerminal>()
+    private data class UploadKey(val chatId: Long, val temporaryId: Long)
+    private val uploadSendingByTemporaryId = ConcurrentHashMap<UploadKey, Int>()
+    private val earlyUploadTerminal = ConcurrentHashMap<UploadKey, EarlyTerminal>()
     @Volatile private var binding: Binding? = null
     init {
         // Keep upload completion observation alive across bot-tab changes for the same ready account.
@@ -77,7 +97,9 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
                 uploadSendingByTemporaryId.clear()
                 earlyUploadTerminal.clear()
                 if (owner == null) return@collectLatest
-                val subscription = owner.rpc.observeUpdates(::observeUploadUpdate)
+                val subscription = owner.rpc.observeUpdates { update ->
+                    if (account.ready.value === owner) observeUploadUpdate(owner, update)
+                }
                 try { awaitCancellation() } finally {
                     subscription.close()
                     uploadSendingByTemporaryId.clear()
@@ -204,14 +226,14 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
         }
     }
     /** Returns the exact currently verified bot target. A picker callback must present the same value before send. */
-    fun captureAttachmentTarget(): AttachmentTarget? {
+    override fun captureAttachmentTarget(): AttachmentTarget? {
         val active = binding ?: return null
         if (!valid(active) || active.faulted || _state.value.status != ConversationStatus.READY) return null
         return AttachmentTarget(active.reducer.key, active.chatId, active.account.generation, active.selection.serial, active.selection.username ?: return null)
     }
 
     /** One-shot send. Once RPC is invoked, unknown outcomes are never converted back to a safe retry. */
-    suspend fun sendAttachment(
+    override suspend fun sendAttachment(
         expected: AttachmentTarget,
         attachment: PreparedAttachment,
         caption: String,
@@ -236,7 +258,7 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
             })
             if (message.type() != "message") return@withContext AttachmentSendResult.Uncertain(sendingId)
             val temporaryId = message.number("id") ?: return@withContext AttachmentSendResult.Uncertain(sendingId)
-            registerPendingUpload(message, sendingId)
+            registerPendingUpload(active.account, message, sendingId)
             // Target was checked directly before RPC. Switching tabs afterwards doesn't undo an accepted send.
             if (matches(active, expected)) {
                 active.reducer.add(message)
@@ -267,49 +289,59 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
             active.account.generation == expected.accountGeneration && active.selection.serial == expected.viewGeneration &&
             active.selection.username == expected.username
 
-    private fun registerPendingUpload(message: JsonObject, fallbackSendingId: Int? = null) {
+    private fun registerPendingUpload(owner: ReadyAccount, message: JsonObject, fallbackSendingId: Int? = null) {
         val temporaryId = message.number("id") ?: return
+        val chatId = message.number("chat_id") ?: return
+        val key = UploadKey(chatId, temporaryId)
         val pendingId = message.obj("sending_state")?.number("sending_id")?.toInt()?.takeIf { it > 0 }
             ?: fallbackSendingId?.takeIf { it > 0 } ?: return
-        uploadSendingByTemporaryId[temporaryId] = pendingId
-        _uploadEvents.tryEmit(UploadEvent.Pending(pendingId, temporaryId))
-        earlyUploadTerminal.remove(temporaryId)?.let { terminal ->
-            uploadSendingByTemporaryId.remove(temporaryId)
+        if (fallbackSendingId != null && pendingId != fallbackSendingId) return
+        val accountKey = "${owner.userId}:${owner.generation}"
+        uploadSendingByTemporaryId[key] = pendingId
+        _uploadEvents.tryEmit(UploadEvent.Pending(accountKey, chatId, pendingId, temporaryId))
+        earlyUploadTerminal.remove(key)?.let { terminal ->
+            uploadSendingByTemporaryId.remove(key)
             _uploadEvents.tryEmit(
-                if (terminal.succeeded) UploadEvent.Succeeded(pendingId, temporaryId, terminal.messageId)
-                else UploadEvent.Failed(pendingId, temporaryId),
+                if (terminal.succeeded) UploadEvent.Succeeded(accountKey, chatId, pendingId, temporaryId, terminal.messageId)
+                else UploadEvent.Failed(accountKey, chatId, pendingId, temporaryId),
             )
         }
     }
 
-    private fun rememberEarlyTerminal(temporaryId: Long, terminal: EarlyTerminal) {
-        if (earlyUploadTerminal.size >= 128 && !earlyUploadTerminal.containsKey(temporaryId)) {
+    private fun rememberEarlyTerminal(key: UploadKey, terminal: EarlyTerminal) {
+        if (earlyUploadTerminal.size >= 128 && !earlyUploadTerminal.containsKey(key)) {
             earlyUploadTerminal.keys.firstOrNull()?.let(earlyUploadTerminal::remove)
         }
-        earlyUploadTerminal[temporaryId] = terminal
+        earlyUploadTerminal[key] = terminal
     }
 
-    private fun observeUploadUpdate(update: JsonObject) {
+    private fun observeUploadUpdate(owner: ReadyAccount, update: JsonObject) {
+        val accountKey = "${owner.userId}:${owner.generation}"
         when (update.type()) {
-            "updateNewMessage" -> update.obj("message")?.let(::registerPendingUpload)
+            "updateNewMessage" -> update.obj("message")?.let { registerPendingUpload(owner, it) }
             "updateMessageSendSucceeded" -> {
                 val temporaryId = update.number("old_message_id") ?: return
-                val messageId = update.obj("message")?.number("id") ?: temporaryId
-                val sendingId = uploadSendingByTemporaryId.remove(temporaryId)
-                if (sendingId == null) rememberEarlyTerminal(temporaryId, EarlyTerminal(true, messageId))
-                else _uploadEvents.tryEmit(UploadEvent.Succeeded(sendingId, temporaryId, messageId))
+                val message = update.obj("message") ?: return
+                val chatId = message.number("chat_id") ?: return
+                val messageId = message.number("id") ?: return
+                val key = UploadKey(chatId, temporaryId)
+                val sendingId = uploadSendingByTemporaryId.remove(key)
+                if (sendingId == null) rememberEarlyTerminal(key, EarlyTerminal(true, messageId))
+                else _uploadEvents.tryEmit(UploadEvent.Succeeded(accountKey, chatId, sendingId, temporaryId, messageId))
             }
             "updateMessageSendFailed" -> {
                 val temporaryId = update.number("old_message_id") ?: return
-                val sendingId = uploadSendingByTemporaryId.remove(temporaryId)
-                if (sendingId == null) rememberEarlyTerminal(temporaryId, EarlyTerminal(false, temporaryId))
-                else _uploadEvents.tryEmit(UploadEvent.Failed(sendingId, temporaryId))
+                val chatId = update.obj("message")?.number("chat_id") ?: return
+                val key = UploadKey(chatId, temporaryId)
+                val sendingId = uploadSendingByTemporaryId.remove(key)
+                if (sendingId == null) rememberEarlyTerminal(key, EarlyTerminal(false, temporaryId))
+                else _uploadEvents.tryEmit(UploadEvent.Failed(accountKey, chatId, sendingId, temporaryId))
             }
         }
     }
 
     /** Read-only restart probe. Missing/unknown messages remain retained and are never resent automatically. */
-    suspend fun inspectAttachment(
+    override suspend fun inspectAttachment(
         accountKey: String,
         chatId: Long,
         temporaryMessageId: Long,
@@ -327,15 +359,16 @@ class BotConversations(private val account: AccountCoordinator, scope: Coroutine
             })
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { return@withContext null }
-        if (account.ready.value !== owner || message.type() != "message") return@withContext null
+        if (account.ready.value !== owner || message.type() != "message" ||
+            message.number("chat_id") != chatId || message.number("id") != temporaryMessageId) return@withContext null
         val sendingState = message.obj("sending_state")
         when (sendingState?.type()) {
             "messageSendingStatePending" -> {
                 val observed = sendingState.number("sending_id")?.toInt() ?: return@withContext null
-                if (observed == sendingId) UploadEvent.Pending(sendingId, temporaryMessageId) else null
+                if (observed == sendingId) UploadEvent.Pending(accountKey, chatId, sendingId, temporaryMessageId) else null
             }
-            "messageSendingStateFailed" -> UploadEvent.Failed(sendingId, temporaryMessageId)
-            null -> UploadEvent.Succeeded(sendingId, temporaryMessageId, message.number("id") ?: temporaryMessageId)
+            "messageSendingStateFailed" -> UploadEvent.Failed(accountKey, chatId, sendingId, temporaryMessageId)
+            null -> UploadEvent.Succeeded(accountKey, chatId, sendingId, temporaryMessageId, temporaryMessageId)
             else -> null
         }
     }

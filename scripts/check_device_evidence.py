@@ -34,7 +34,7 @@ for name in required:
     shutil.copyfile(matches[0], destination / name)
 reports = list((outputs / 'androidTest-results').rglob('TEST-*.xml'))
 suites = [ET.parse(path).getroot() for path in reports]
-assert sum(int(s.get('tests', 0)) for s in suites) == 56, 'Expected 49 prior app cases and 7 outgoing retention cases'
+assert sum(int(s.get('tests', 0)) for s in suites) == 62, 'Expected 56 prior app cases and 6 upload coordination cases'
 assert all(int(s.get(k, 0)) == 0 for s in suites for k in ('failures', 'errors', 'skipped')), 'App device test did not pass'
 outgoing_cases = {case.get('name') for suite in suites for case in suite.iter('testcase')
                   if case.get('classname') == 'com.ahmed9461.botos.OutgoingRetentionTest'}
@@ -47,4 +47,14 @@ assert outgoing_cases == {
     'fileCountLimitDoesNotEvictUncertainOrPendingMedia',
     'missingOrForeignFileCannotReachAttemptedState',
 }, 'Expected all seven outgoing retention cases'
-print('All eighteen device screenshots, fifty-six app tests and keyboard measurement verified.')
+coordination_cases = {case.get('name') for suite in suites for case in suite.iter('testcase')
+                      if case.get('classname') == 'com.ahmed9461.botos.TelegramUploadsTest'}
+assert coordination_cases == {
+    'queuePersistsAttemptBeforeRpcAndFinalUpdateReleasesFile',
+    'sameStagedFileCannotBeQueuedTwiceOrRetriedOnUncertainResponse',
+    'finalUpdateBeforeRpcResponseCannotRestorePendingOrResend',
+    'interruptedRpcRetainsUncertainFileForExplicitReview',
+    'staleTargetAndWrongAccountOrChatUpdateCannotAffectAnotherUpload',
+    'restartProbesKnownTemporaryIdForSameUserWithoutResending',
+}, 'Expected all six account-scoped upload coordination cases'
+print('All eighteen device screenshots, sixty-two app tests and keyboard measurement verified.')

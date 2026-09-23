@@ -67,8 +67,8 @@ class OutgoingUploadJournal(private val directory: File, private val media: Outg
         record.copy(status = UploadStatus.ATTEMPTED)
     }
 
-    suspend fun pending(accountKey: String, sendingId: Int, temporaryId: Long): OutgoingUploadRecord? =
-        terminalOrPending(accountKey, sendingId) { record ->
+    suspend fun pending(accountKey: String, chatId: Long, sendingId: Int, temporaryId: Long): OutgoingUploadRecord? =
+        terminalOrPending(accountKey, chatId, sendingId) { record ->
             if (temporaryId == 0L || record.status in FINAL) record
             else record.copy(status = UploadStatus.PENDING, temporaryMessageId = temporaryId)
         }
@@ -80,15 +80,15 @@ class OutgoingUploadJournal(private val directory: File, private val media: Outg
         }
     }
 
-    suspend fun succeeded(accountKey: String, sendingId: Int, temporaryId: Long, messageId: Long): OutgoingUploadRecord? =
-        terminalOrPending(accountKey, sendingId) { record ->
+    suspend fun succeeded(accountKey: String, chatId: Long, sendingId: Int, temporaryId: Long, messageId: Long): OutgoingUploadRecord? =
+        terminalOrPending(accountKey, chatId, sendingId) { record ->
             require(messageId != 0L)
             if (record.status in FINAL) record else record.copy(status = UploadStatus.SUCCEEDED,
                 temporaryMessageId = temporaryId, confirmedMessageId = messageId)
         }
 
-    suspend fun failed(accountKey: String, sendingId: Int, temporaryId: Long): OutgoingUploadRecord? =
-        terminalOrPending(accountKey, sendingId) { record ->
+    suspend fun failed(accountKey: String, chatId: Long, sendingId: Int, temporaryId: Long): OutgoingUploadRecord? =
+        terminalOrPending(accountKey, chatId, sendingId) { record ->
             if (record.status in FINAL) record else record.copy(status = UploadStatus.FAILED,
                 temporaryMessageId = temporaryId)
         }
@@ -124,11 +124,11 @@ class OutgoingUploadJournal(private val directory: File, private val media: Outg
         }
     }
 
-    private suspend fun terminalOrPending(accountKey: String, sendingId: Int,
+    private suspend fun terminalOrPending(accountKey: String, chatId: Long, sendingId: Int,
         change: (OutgoingUploadRecord) -> OutgoingUploadRecord): OutgoingUploadRecord? = withContext(Dispatchers.IO) {
         mutex.withLock {
             val records = read()
-            val record = records.singleOrNull { it.accountKey == accountKey && it.sendingId == sendingId }
+            val record = records.singleOrNull { it.accountKey == accountKey && it.chatId == chatId && it.sendingId == sendingId }
                 ?: return@withLock null
             if (record.status == UploadStatus.STAGED) return@withLock null
             val next = change(record)

@@ -226,7 +226,7 @@ class BotConversationsTest {
                 put("old_message_id", -50)
                 put("message", wireMessage(501, 100, outgoing = true))
             })
-            assertEquals(UploadEvent.Succeeded(777, -50, 501), observed.await())
+            assertEquals(UploadEvent.Succeeded(target.chat.account, 100, 777, -50, 501), observed.await())
         }
     }
 
@@ -272,8 +272,38 @@ class BotConversationsTest {
             val result = f.live.sendAttachment(target,
                 PreparedAttachment("/private/file.jpg", AttachmentKind.PHOTO, 100, 10, 10), "", 779)
             assertEquals(AttachmentSendResult.Pending(779, -70), result)
-            assertEquals(UploadEvent.Succeeded(779, -70, 701), terminal.await())
+            assertEquals(UploadEvent.Succeeded(target.chat.account, 100, 779, -70, 701), terminal.await())
             assertEquals(1, f.rpc.calls.count { it.type() == "sendMessage" && it.obj("options")?.number("sending_id") == 779L })
+        }
+    }
+
+    @Test fun equalTemporaryIdsInDifferentChatsDoNotCrossComplete() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.connect(); f.open()
+            val target = f.live.captureAttachmentTarget()!!
+            f.rpc.sending = {
+                val pending = wireMessage(-80, 100, outgoing = true).toMutableMap()
+                pending["sending_state"] = TdJson.command("messageSendingStatePending") { put("sending_id", 780) }
+                f.rpc.emit(TdJson.command("updateMessageSendSucceeded") {
+                    put("old_message_id", -80)
+                    put("message", wireMessage(880, 200, outgoing = true))
+                })
+                JsonObject(pending)
+            }
+            val observed = CopyOnWriteArrayList<UploadEvent>()
+            val collect = f.scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                f.live.uploadEvents.collect { observed += it }
+            }
+            try {
+                assertEquals(AttachmentSendResult.Pending(780, -80), f.live.sendAttachment(target,
+                    PreparedAttachment("/private/file.jpg", AttachmentKind.PHOTO, 100, 10, 10), "", 780))
+                f.rpc.emit(TdJson.command("updateMessageSendSucceeded") {
+                    put("old_message_id", -80)
+                    put("message", wireMessage(881, 100, outgoing = true))
+                })
+                withTimeout(5_000) { while (observed.none { it is UploadEvent.Succeeded && it.messageId == 881L }) delay(1) }
+                assertFalse(observed.any { it is UploadEvent.Succeeded && it.messageId == 880L })
+            } finally { collect.cancel() }
         }
     }
 
