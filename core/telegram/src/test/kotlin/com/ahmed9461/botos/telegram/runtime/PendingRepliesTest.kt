@@ -73,4 +73,31 @@ class PendingRepliesTest {
         assertFalse(action.enabled); assertEquals(ActionPayload.Unsupported, action.payload)
         assertTrue(r.value!!.content.inlineActions.isEmpty())
     }
+
+    @Test fun textAndRichStreamFragmentsReplaceInPlaceAndOldStopCannotEraseNewDraft() {
+        val r = PendingReplies(key, 100, 3_000) { now }
+        r.update(pending(id = 10, text = "الجزء الأول"))
+        val textRevision = r.value!!.content.revision
+        fun rich(fragment: String) = TdJson.command("updatePendingMessage") {
+            put("chat_id", 100); put("draft_id", 11); put("can_stop", true)
+            put("content", TdJson.command("messageRichMessage") {
+                put("message", TdJson.command("richMessage") {
+                    put("is_full", true)
+                    put("blocks", buildJsonArray { add(TdJson.command("pageBlockParagraph") {
+                        put("text", TdJson.command("richTextPlain") { put("text", fragment) })
+                    }) })
+                })
+            })
+        }
+        r.update(rich("قديم")); r.update(rich("جديد"))
+        val current = r.value!!
+        assertEquals(11L, current.draftId)
+        assertTrue(current.content.revision > textRevision)
+        assertEquals("جديد", (current.content.blocks.single() as Block.Paragraph).text)
+        assertTrue(current.content.inlineActions.isEmpty())
+        r.update(TdJson.command("updateStopMessageDraft") { put("chat_id", 100); put("draft_id", 10) })
+        assertEquals(11L, r.value!!.draftId)
+        r.incoming(wireMessage(chatId = 200)); assertNotNull(r.value)
+        r.incoming(wireMessage(chatId = 100)); assertNull(r.value)
+    }
 }

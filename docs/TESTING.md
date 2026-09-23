@@ -1,5 +1,9 @@
 # الاختبارات والأدلة — BotOS
 
+## 23 سبتمبر 2026 — إغلاق D5 على CI85
+
+[CI85/35902432267](https://github.com/ahmed9461/BotOS/actions/runs/35902432267) على `b4d08dc10dc80077bf948672f75ecd9584e908f5` نجح. حزمة BotOS-runtime-checks-85/10770880004 طابقت SHA256 `2435312cd4cf3d3c38de936269463373d507d7523809f8adaf156e4cef2022c7` وسلامة ZIP. قرئت XML: 8model+94telegram=102JVM، و8native، و77app بلا فشل/خطأ/تخطي. اختبار `voiceCaptureStopsWhenActivityLeavesForeground` موجود في التقرير وناجح. 21 لقطة بينها `outgoing-voice-dark-ar.png` روجعت بصريًا؛ keyboard gap=6.095238dp. lint المحرك0/0 والتطبيق0أخطاء/36تحذيرًا، وnative-runtime يثبت TDLib1.8.67 والمخطط المثبت و`accountUsed=false`. هذه بوابة محاكي D5 وليست تجربة حساب أو هاتف المالك، ولا APK مالك جديد.
+
 ## 23 سبتمبر 2026 — D4 على CI81
 
 CI81/35897443037 على `5305c9da275e8cf5c9a169b640715eb64055dc20` اجتاز. حزمة10767727778 SHA256 `4d9bb3dd8eadb29c8a88d58a7beb992ae8f9c8dfade4a44c4f6d8bbf46a5370f` وسلامةZIP صحيحة. تقارير XML الفعلية:8model+94telegram=102JVM، و8native، و70app، دون فشل أو خطأ أو تخطي أو مدة غير صالحة. راجعت أسماء حالات OutgoingAttachmentPreparerTest الأربع، معاينة OutgoingAttachmentUiTest والقائمة في LiveBotPanelTest وحالات الاحتفاظ التسع والتنسيق الست، والـlogs الجديدة بلا انهيار. lint المحرك0/0 والتطبيق0أخطاء/35تحذيرًا؛20صورة وفجوةIME6.095238dp، ورجعت صورتا outgoing-preview-light-ar/dark-ar بصريًا داخل التصميم المعتمد. native-runtime يثبت المخطط المثبت و`accountUsed=false`. CI79 أخفق في نوع Application بتجميع التطبيق، وCI80 أخفق في استيراد Compose للاختبار؛ سبب كل تصحيح وخطته في 0007-outgoing-media-execution. D5 والمالك النهائي ليسا ضمن هذا الدليل.

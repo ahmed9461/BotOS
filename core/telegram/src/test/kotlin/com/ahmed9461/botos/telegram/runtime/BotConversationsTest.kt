@@ -17,6 +17,7 @@ class BotConversationsTest {
         var richHistory: JsonObject? = null
         var bot = true
         var owner = 42L
+        var pendingPeriod = 0L
         var historyGate: CompletableDeferred<Unit>? = null
         var sending: (suspend () -> JsonObject)? = null
         override suspend fun request(command: JsonObject, timeoutMillis: Long): JsonObject {
@@ -33,6 +34,7 @@ class BotConversationsTest {
                     TdJson.command("messages") { put("messages", buildJsonArray { add(richHistory ?: wireMessage(chatId = command.number("chat_id")!!, markup = wireKeyboard(true))) }) }
                 }
                 "getFullRichMessage" -> fullReply?.invoke() ?: throw TdFailure(FailureKind.REMOTE)
+                "getOption" -> TdJson.command("optionValueInteger") { put("value", pendingPeriod) }
                 "sendMessage" -> sending?.invoke() ?: wireMessage(-1, command.number("chat_id")!!, outgoing = true, sending = "messageSendingStatePending")
                 "sendBotStartMessage" -> wireMessage(-2, command.number("chat_id")!!, outgoing = true, sending = "messageSendingStatePending")
                 "getCallbackQueryAnswer" -> TdJson.command("callbackQueryAnswer") { put("text", "تم"); put("url", "") }
@@ -191,6 +193,46 @@ class BotConversationsTest {
             f.rpc.richHistory = null
             f.open("beta_bot")
             assertEquals("مرحبا 🌚", (f.live.state.value.timeline!!.messages.single().blocks.first() as Block.Paragraph).text)
+        }
+    }
+
+    @Test fun pendingTextAndRichUpdatesAreIsolatedAcrossTabSwitchAndDisconnect() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.rpc.pendingPeriod = 3
+            f.connect(); f.open("alpha_bot")
+            fun pending(chatId: Long, id: Long, text: String, rich: Boolean): JsonObject =
+                TdJson.command("updatePendingMessage") {
+                    put("chat_id", chatId); put("draft_id", id); put("can_stop", true)
+                    put("content", if (rich) TdJson.command("messageRichMessage") {
+                        put("message", TdJson.command("richMessage") {
+                            put("is_full", true); put("blocks", buildJsonArray {
+                                add(TdJson.command("pageBlockParagraph") {
+                                    put("text", TdJson.command("richTextPlain") { put("text", text) })
+                                })
+                            })
+                        })
+                    } else TdJson.command("messageText") {
+                        put("text", TdJson.command("formattedText") { put("text", text) })
+                    })
+                }
+            f.rpc.emit(pending(100, 7, "نص", false))
+            withTimeout(5_000) { f.live.state.first { it.pending?.draftId == 7L } }
+            f.rpc.emit(pending(100, 7, "غني", true))
+            withTimeout(5_000) { f.live.state.first { state ->
+                (state.pending?.content?.blocks?.singleOrNull() as? Block.Paragraph)?.text == "غني"
+            } }
+            val previous = f.live.state.value.pending!!.content.chat
+            f.open("beta_bot")
+            assertNull(f.live.state.value.pending)
+            f.rpc.emit(pending(100, 8, "قديم", true))
+            delay(50)
+            assertNull(f.live.state.value.pending)
+            f.rpc.emit(pending(200, 9, "جديد", false))
+            withTimeout(5_000) { f.live.state.first { it.pending?.draftId == 9L } }
+            assertNotEquals(previous, f.live.state.value.pending!!.content.chat)
+            f.account.logOut(); f.waitStatus(ConversationStatus.SIGN_IN)
+            assertNull(f.live.state.value.pending)
+            assertFalse(f.rpc.calls.any { it.type() == "sendMessage" || it.type() == "getCallbackQueryAnswer" })
         }
     }
     @Test fun capturedAttachmentTargetCannotSendAfterBotSwitch() = runBlocking<Unit> {
