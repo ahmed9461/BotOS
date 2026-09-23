@@ -1,7 +1,7 @@
 name: Private owner delivery
 on:
   push:
-    branches: [feat/rich-chat-polish]
+    branches: [feat/media-profiles-streaming]
     paths: ['delivery/request.json']
   workflow_dispatch:
 permissions:
@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.repository == 'ahmed9461/BotOS' &&
       github.actor == 'ahmed9461' &&
-      github.ref == 'refs/heads/feat/rich-chat-polish' &&
+      github.ref == 'refs/heads/feat/media-profiles-streaming' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -68,6 +68,7 @@ jobs:
       - name: Verify native provenance and prepare build tools without application secrets
         run: |
           python3 scripts/check_tdlib_contract.py
+          python3 scripts/check_rich_coverage.py
           python3 -m unittest discover -s scripts/tests -v
           bash scripts/install_android_sdk.sh 'platforms;android-37.0' 'build-tools;36.0.0' > /tmp/botos-owner-sdk.txt 2>&1 || { tail -n 30 /tmp/botos-owner-sdk.txt; exit 1; }
           gradle --no-daemon --no-build-cache --no-configuration-cache wrapper --gradle-version 9.6.1 --distribution-type bin --gradle-distribution-sha256-sum 9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14

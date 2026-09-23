@@ -33,7 +33,7 @@ def validate_request(request: dict, run: dict, changed: list[str]) -> dict[str, 
             run.get('status') != 'completed' or run.get('conclusion') != 'success' or
             run.get('event') != 'pull_request' or run.get('path') != '.github/workflows/android.yml' or
             run.get('head_repository', {}).get('full_name') != REPO or
-            run.get('head_branch') != 'feat/rich-chat-polish'):
+            run.get('head_branch') != 'feat/media-profiles-streaming'):
         raise ValueError('Source lacks a matching successful trusted integration run')
     if type(run.get('run_number')) is not int or run['run_number'] <= 0:
         raise ValueError('Missing integration artifact number')
@@ -119,6 +119,8 @@ def locate_owner_apk(outputs: Path) -> Path:
     elements = metadata.get('elements', [])
     if len(elements) != 1 or elements[0].get('type') != 'SINGLE' or elements[0].get('filters') != []:
         raise ValueError('A single universal owner APK is required')
+    if elements[0].get('versionCode') != 5 or elements[0].get('versionName') != '0.5.0-preview':
+        raise ValueError('Owner APK version must advance to 0.5.0-preview')
     filename = elements[0].get('outputFile', '')
     if not isinstance(filename, str) or not filename.endswith('.apk') or Path(filename).name != filename or '\\' in filename:
         raise ValueError('Invalid owner APK output path')
@@ -177,13 +179,13 @@ def package_owner(destination: Path, build_tools: Path) -> None:
     signer_tool = build_tools / 'lib/apksigner.jar'
     manifest = {'source_commit': os.environ['BOTOS_TESTED_SOURCE'], 'integration_run': os.environ['BOTOS_INTEGRATION_RUN'],
                 'delivery_run': os.environ['GITHUB_RUN_ID'], 'configuration': 'verified', 'account_used': False,
-                'application_id': expected['applicationId'], 'debuggable': False, 'version': '0.4.0-preview',
+                'application_id': expected['applicationId'], 'debuggable': False, 'version': '0.5.0-preview',
                 'apk_sha256_before_owner_signing': hashlib.sha256(apk.read_bytes()).hexdigest(),
                 'apksigner_sha256': hashlib.sha256(signer_tool.read_bytes()).hexdigest(),
                 'signing': 'temporary CI certificate; final owner signing is required'}
     destination.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(destination, 'x', compression=zipfile.ZIP_DEFLATED) as archive:
-        archive.write(apk, 'BotOS-0.4.0-preview-ci.apk')
+        archive.write(apk, 'BotOS-0.5.0-preview-ci.apk')
         archive.write(signer_tool, 'tools/apksigner.jar')
         archive.write(files[0], 'owner-startup.txt')
         archive.write(reports[0], 'owner-startup.xml')

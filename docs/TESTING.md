@@ -1,5 +1,13 @@
 # الاختبارات والأدلة — BotOS
 
+## تجهيز مصدر0.5 قبل CI النهائي
+
+اختبارات Python المحددة `OwnerRequestTest` وحالتا `OwnerPackagingTest` للإصدار والتغليف نجحت محليًا 8/8 بعد تغيير حارس الفرع وversionCode5. هذا لا يثبت بناء Android أو owner delivery للمصدر الجديد. `delivery/request.json` معطل حتى اجتياز CI المطابق.
+
+## 23 سبتمبر 2026 — E التقنية على CI86
+
+[CI86/35910856881](https://github.com/ahmed9461/BotOS/actions/runs/35910856881) على `5a009413b6ee60283992d5a07bb303027f661f86` نجح. حزمة BotOS-runtime-checks-86/10773497880 طابقت SHA256 `848f7e6a2e732f41b475d168e9219bfc5be6deea8f242c374cb91e1b00b0c6f4`. XML الفعلية:8model+97telegram=105JVM، و8native، و77app بلا فشل/خطأ/تخطي. الحالات الثلاث الجديدة `textAndRichStreamFragmentsReplaceInPlaceAndOldStopCannotEraseNewDraft`, `finalTextEditReplacesMessageAndInvalidatesPriorRevisionOnlyInItsChat`, `pendingTextAndRichUpdatesAreIsolatedAcrossTabSwitchAndDisconnect` موجودة وناجحة. فحص مصفوفة Rich 30/36 في بوابة العقد اجتاز. 21لقطة بينها outgoing-voice-dark-ar روجعت، وIME6.095238dp؛ lint المحرك0/0 والتطبيق0أخطاء/36تحذيرًا، native `accountUsed=false`. هذا دليل E التقني بموارد اصطناعية، وليس بناء المالك المهيأ أو توقيعًا أو تجربة حسابه.
+
 ## 23 سبتمبر 2026 — إغلاق D5 على CI85
 
 [CI85/35902432267](https://github.com/ahmed9461/BotOS/actions/runs/35902432267) على `b4d08dc10dc80077bf948672f75ecd9584e908f5` نجح. حزمة BotOS-runtime-checks-85/10770880004 طابقت SHA256 `2435312cd4cf3d3c38de936269463373d507d7523809f8adaf156e4cef2022c7` وسلامة ZIP. قرئت XML: 8model+94telegram=102JVM، و8native، و77app بلا فشل/خطأ/تخطي. اختبار `voiceCaptureStopsWhenActivityLeavesForeground` موجود في التقرير وناجح. 21 لقطة بينها `outgoing-voice-dark-ar.png` روجعت بصريًا؛ keyboard gap=6.095238dp. lint المحرك0/0 والتطبيق0أخطاء/36تحذيرًا، وnative-runtime يثبت TDLib1.8.67 والمخطط المثبت و`accountUsed=false`. هذه بوابة محاكي D5 وليست تجربة حساب أو هاتف المالك، ولا APK مالك جديد.

@@ -25,7 +25,8 @@ class OwnerPackagingTest(unittest.TestCase):
         self.report.parent.mkdir(parents=True); self.report.write_text(NESTED)
         self.folder = self.outputs / 'apk/ownerPreview'; self.folder.mkdir(parents=True)
         self.metadata = {'applicationId': 'com.ahmed9461.botos.app', 'variantName': 'ownerPreview',
-                         'artifactType': {'type': 'APK'}, 'elements': [{'type': 'SINGLE', 'filters': [], 'outputFile': 'custom-name.apk'}]}
+                         'artifactType': {'type': 'APK'}, 'elements': [{'type': 'SINGLE', 'filters': [],
+                         'versionCode': 5, 'versionName': '0.5.0-preview', 'outputFile': 'custom-name.apk'}]}
         self.save_metadata()
         self.apk = self.folder/'custom-name.apk'
         with zipfile.ZipFile(self.apk, 'w') as archive:
@@ -77,6 +78,9 @@ class OwnerPackagingTest(unittest.TestCase):
         for key,value in [('applicationId','other.app'),('variantName','debug'),('artifactType',{'type':'BUNDLE'})]:
             self.save_metadata(self.metadata | {key:value})
             with self.subTest(key=key), self.assertRaises(ValueError): module.locate_owner_apk(self.outputs)
+        for key,value in [('versionCode',4),('versionName','0.4.0-preview')]:
+            data=copy.deepcopy(self.metadata);data['elements'][0][key]=value;self.save_metadata(data)
+            with self.subTest(key=key), self.assertRaises(ValueError): module.locate_owner_apk(self.outputs)
     def test_path_traversal_absolute_backslash_and_missing_apk_are_rejected(self):
         for name in ['../custom-name.apk','/tmp/custom-name.apk','..\\custom-name.apk','missing.apk']:
             data=copy.deepcopy(self.metadata);data['elements'][0]['outputFile']=name;self.save_metadata(data)
@@ -93,8 +97,9 @@ class OwnerPackagingTest(unittest.TestCase):
         run=self.package()
         self.assertEqual(['apksigner','zipalign'],[Path(c.args[0][0]).name for c in run.call_args_list])
         with zipfile.ZipFile(self.destination) as archive:
-            self.assertEqual({'BotOS-0.4.0-preview-ci.apk','tools/apksigner.jar','owner-startup.txt','owner-startup.xml','owner-update.json','provenance.json'},set(archive.namelist()))
+            self.assertEqual({'BotOS-0.5.0-preview-ci.apk','tools/apksigner.jar','owner-startup.txt','owner-startup.xml','owner-update.json','provenance.json'},set(archive.namelist()))
             manifest=json.loads(archive.read('provenance.json'));self.assertFalse(manifest['account_used']);self.assertFalse(manifest['debuggable'])
+            self.assertEqual('0.5.0-preview',manifest['version'])
     def test_configuration_conflict_and_extra_report_never_create_payload(self):
         self.evidence.write_text(self.evidence.read_text().replace('configured=true','configured=false'))
         with self.assertRaises(ValueError): self.package()

@@ -41,7 +41,7 @@ messageRichMessageيحوّلمنالمخططالمثبتبميزانياتأثن
 
 ## احتفاظ المرفقات الصادرة — D2
 
-OutgoingMediaStore ينسخ stream إلى noBackup/telegram/main/files/botos_outgoing خارج Main، بحصص50MiB/200MiB/32. OutgoingUploadJournal مستقل وذري، يحجز الهدف/الملف/sendingId قبلRPC؛ مرحلةATTEMPTED تمنع التكرار، وUNKNOWN تحتفظ بالملف، وSUCCEEDED النهائي وحده يجيز إخلاءه. لا caption أو محتوى الملف في السجل. سبع حالات Android اجتازتCI75؛ TelegramUploads والواجهة والتسجيل التالية في D3 وما بعدها.
+OutgoingMediaStore ينسخ stream إلى noBackup/telegram/main/files/botos_outgoing خارج Main، بحصص50MiB/200MiB/32. OutgoingUploadJournal مستقل وذري، يحجز الهدف/الملف/sendingId قبلRPC؛ مرحلةATTEMPTED تمنع التكرار، وUNKNOWN تحتفظ بالملف، وSUCCEEDED النهائي وحده يجيز إخلاءه. لا caption أو محتوى الملف في السجل. المخزن اجتازCI75، ومنسقTelegramUploads اجتازCI77، والواجهةCI81، والتسجيل مع إيقاف الخلفيةCI85.
 
 ## التصميم والتسليم
 
@@ -51,7 +51,7 @@ PRCIبلاأسرار. هويةownerPreviewهيcom.ahmed9461.botos.app، والت
 
 ## الحدود
 
-تشغيل الوسائطC اجتازCI64 ضمن fixtures، وإرسال المرفقات والتسجيلD لم يكتمل؛ MiniApps/Paymentsوالتنضيدالكاملومصفوفةالأداءليستمكتملة. لاتدعمختباراتصورمصطنعةفحصالهواتفالحقيقيةأوالشبكةالضعيفةأوالـFPS.
+تشغيل الوسائطC اجتازCI64 ضمن fixtures، وإرسال المرفقات والتسجيلD اجتازCI85، ومصفوفةRich واختباراتالبثوالتعديل اجتازتCI86. نسخةالمالك0.5 لم تُجهز أو توقع بعد؛ MiniApps/Paymentsوالتنضيدالكاملومصفوفةالأداءليستمكتملة. لاتدعمختباراتصورمصطنعةفحصالهواتفالحقيقيةأوالشبكةالضعيفةأوالـFPS.
 
 ## تحديث0007-C — تحققCI64
 
