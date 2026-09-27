@@ -30,15 +30,15 @@ class InPlaceUpdateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             folder = Path(temp)
             with self.assertRaises(FileNotFoundError):
-                probe.single_apk(folder, probe.APP_ID, (4, '0.4.0-preview'))
+                probe.single_apk(folder, probe.APP_ID, (5, '0.5.0-preview'))
             (folder / 'actual.apk').write_bytes(b'fixture')
             metadata = {'applicationId': probe.APP_ID, 'elements': [{
-                'outputFile':'actual.apk', 'versionCode':4, 'versionName':'0.4.0-preview'}]}
+                'outputFile':'actual.apk', 'versionCode':5, 'versionName':'0.5.0-preview'}]}
             (folder / 'output-metadata.json').write_text(json.dumps(metadata))
             self.assertEqual(folder / 'actual.apk', probe.single_apk(folder, probe.APP_ID,
-                                                                      (4, '0.4.0-preview')))
+                                                                      (5, '0.5.0-preview')))
             with self.assertRaises(ValueError):
-                probe.single_apk(folder, probe.APP_ID, (5, '0.5.0-preview'))
+                probe.single_apk(folder, probe.APP_ID, (6, '0.6.0-preview'))
             for bad in ['../actual.apk', '/tmp/a.apk', 'bad\\a.apk', 'missing.apk']:
                 metadata['elements'][0]['outputFile'] = bad
                 (folder / 'output-metadata.json').write_text(json.dumps(metadata))
@@ -48,9 +48,9 @@ class InPlaceUpdateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             old_folder = root / 'previous'
-            old = self.write_apk(old_folder, probe.APP_ID, 'old.apk', (4, '0.4.0-preview'))
+            old = self.write_apk(old_folder, probe.APP_ID, 'old.apk', (5, '0.5.0-preview'))
             new = self.write_apk(root / 'app/build/outputs/apk/ownerPreview', probe.APP_ID,
-                                 'new.apk', (5, '0.5.0-preview'))
+                                 'new.apk', (6, '0.6.0-preview'))
             test = self.write_apk(root / 'app/build/outputs/apk/androidTest/ownerPreview',
                                   probe.APP_ID + '.test', 'test.apk')
             environment = {'ANDROID_HOME': str(root / 'sdk'), 'ANDROID_SERIAL': 'emulator-5554',
@@ -84,6 +84,6 @@ class InPlaceUpdateTest(unittest.TestCase):
                 [c[-1] if 'install' in c else c[c.index('botos.updateStage') + 1] for c in steps])
             self.assertFalse(any('uninstall' in c for c in calls))
             report = json.loads((root / 'diagnostics/owner-update.json').read_text())
-            self.assertEqual(('0.4.0-preview', '0.5.0-preview'),
+            self.assertEqual(('0.5.0-preview', '0.6.0-preview'),
                              (report['from_version'], report['to_version']))
             self.assertFalse(report['same_version_reinstall'])

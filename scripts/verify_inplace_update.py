@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upgrade ownerPreview 0.4 to 0.5 without uninstalling; verify private markers.
+"""Upgrade ownerPreview 0.5 to 0.6 without uninstalling; verify private markers.
 This uses the temporary CI signer, not the owner's offline signing key. Never uses an account.
 """
 from pathlib import Path
@@ -56,9 +56,9 @@ def main() -> None:
     if call('shell', 'getprop', 'ro.kernel.qemu').strip() != '1':
         raise ValueError('Not an emulator')
     previous_folder = Path(os.environ['BOTOS_PREVIOUS_OWNER_FOLDER']).resolve()
-    apk_previous = single_apk(previous_folder, APP_ID, (4, '0.4.0-preview'))
+    apk_previous = single_apk(previous_folder, APP_ID, (5, '0.5.0-preview'))
     apk = single_apk(ROOT / 'app/build/outputs/apk/ownerPreview', APP_ID,
-                     (5, '0.5.0-preview'))
+                     (6, '0.6.0-preview'))
     test_apk = single_apk(ROOT / 'app/build/outputs/apk/androidTest/ownerPreview', APP_ID + '.test')
     apksigner = Path(os.environ['ANDROID_HOME']) / 'build-tools/36.0.0/apksigner'
     if signer_digest(apk_previous, apksigner) != signer_digest(apk, apksigner):
@@ -79,12 +79,12 @@ def main() -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps({
         'application_id': APP_ID, 'in_place_upgrade': 'passed',
-        'from_version': '0.4.0-preview', 'to_version': '0.5.0-preview',
+        'from_version': '0.5.0-preview', 'to_version': '0.6.0-preview',
         'private_file_preserved': True, 'preferences_preserved': True,
         'uninstalled_between_installs': False, 'same_version_reinstall': False,
         'signer': 'temporary CI', 'owner_final_signer_device_test': False, 'account_used': False,
     }, indent=2) + '\n')
-    print('owner_upgrade_0.4_to_0.5=passed; temporary_CI_signer; no_account')
+    print('owner_upgrade_0.5_to_0.6=passed; temporary_CI_signer; no_account')
 
 
 if __name__ == '__main__':

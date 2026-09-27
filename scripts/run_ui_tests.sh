@@ -117,8 +117,8 @@ case "$app_task" in
   :app:connectedDebugAndroidTest|:app:connectedOwnerPreviewAndroidTest) ;;
   *) echo 'Unsupported application device task' >&2; exit 1 ;;
 esac
-# The owner probe starts from a clean disposable emulator with 0.4 installed first.
-# Run it before Gradle's connected test installs the current 0.5 package.
+# The owner probe starts from a clean disposable emulator with 0.5 installed first.
+# Run it before Gradle's connected test installs the current 0.6 package.
 if [[ "${BOTOS_VERIFY_INPLACE_UPDATE:-false}" == 'true' ]]; then
   [[ "$app_task" == ':app:connectedOwnerPreviewAndroidTest' ]] || { echo 'Owner variant required' >&2; exit 1; }
   python3 scripts/verify_inplace_update.py
