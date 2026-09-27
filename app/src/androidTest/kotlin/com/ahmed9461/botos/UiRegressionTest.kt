@@ -104,8 +104,7 @@ class UiRegressionTest {
     private fun screenshot(name: String) {
         Log.i("BotOSUiTest", "screenshot:$name")
         ui.waitForIdle()
-        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-            ?: error("Device screenshot unavailable")
+        val bitmap = captureCommittedScreen()
         try {
             PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
                 check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) { "Screenshot compression failed" }

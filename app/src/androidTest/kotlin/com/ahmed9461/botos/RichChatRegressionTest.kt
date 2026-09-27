@@ -64,8 +64,7 @@ class RichChatRegressionTest {
     }
     private fun capture(name: String) {
         ui.waitForIdle()
-        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-            ?: error("Device screenshot unavailable")
+        val bitmap = captureCommittedScreen()
         try { PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
             check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
         } } finally { bitmap.recycle() }

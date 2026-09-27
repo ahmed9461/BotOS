@@ -68,7 +68,7 @@ internal fun MessageTimelineView(timeline: MessageTimeline, onAction: (ActionTic
         }
     }
     LaunchedEffect(timeline.chat, timeline.messages.lastOrNull()?.id) {
-        if (currentPending == null && timeline.messages.isNotEmpty() && (followTail || timeline.messages.takeLast(2).any { it.outgoing })) {
+        if (currentPending == null && timeline.messages.isNotEmpty() && (followTail || timeline.messages.lastOrNull()?.outgoing == true)) {
             if (duration == 0) listState.scrollToItem(timeline.messages.lastIndex)
             else listState.animateScrollToItem(timeline.messages.lastIndex)
         }

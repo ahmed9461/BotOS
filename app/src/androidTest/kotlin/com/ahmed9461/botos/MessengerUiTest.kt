@@ -66,7 +66,7 @@ class MessengerUiTest {
     }
     private fun capture(name: String) {
         ui.waitForIdle()
-        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot() ?: error("Missing device screenshot")
+        val bitmap = captureCommittedScreen()
         try { PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
             check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
         } } finally { bitmap.recycle() }
@@ -197,13 +197,25 @@ class MessengerUiTest {
         capture("messenger-large-text-ar")
     }
     @Test fun scrollingShowsAnExplicitJumpToLatestWithoutInventingUnreadCounts() {
-        val messages = (1..30).map { id -> BotMessage(id.toLong(), chat, 1,
-            listOf(Block.Paragraph("body-$id", "رسالة $id")), date = 1_789_000_000 + id.toLong()) }
+        fun message(id: Int, outgoing: Boolean = false) = BotMessage(id.toLong(), chat, 1,
+            listOf(Block.Paragraph("body-$id", "رسالة $id")), outgoing = outgoing,
+            date = 1_789_000_000 + id.toLong())
+        var messages by mutableStateOf((1..30).map { message(it, outgoing = it == 30) })
         draw { MessageTimelineView(MessageTimeline(chat, messages), {}) }
         ui.onNodeWithTag("message-list").performScrollToIndex(0)
         ui.onNodeWithTag("message-bubble-1").assertIsDisplayed()
+        // Incoming content after our previous message must not move a reader away from history.
+        ui.runOnIdle { messages = messages + message(31) }
+        ui.onNodeWithTag("message-bubble-1").assertIsDisplayed()
         ui.onNodeWithTag("chat-jump-latest").assertIsDisplayed().performClick()
-        ui.onNodeWithTag("message-bubble-30").assertIsDisplayed()
+        ui.onNodeWithTag("message-bubble-31").assertIsDisplayed()
+        ui.onNodeWithTag("chat-jump-latest").assertDoesNotExist()
+        // A new explicit send still moves to the tail, and incoming content follows at the tail.
+        ui.onNodeWithTag("message-list").performScrollToIndex(0)
+        ui.runOnIdle { messages = messages + message(32, outgoing = true) }
+        ui.onNodeWithTag("message-bubble-32").assertIsDisplayed()
+        ui.runOnIdle { messages = messages + message(33) }
+        ui.onNodeWithTag("message-bubble-33").assertIsDisplayed()
         ui.onNodeWithTag("chat-jump-latest").assertDoesNotExist()
     }
 }
