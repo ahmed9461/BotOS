@@ -44,6 +44,7 @@ import com.ahmed9461.botos.telegram.runtime.ConversationStatus
 @Composable
 fun BotOsApp(vm: WorkspaceViewModel = viewModel(), accountVm: AccountViewModel = viewModel()) {
     val shellState by vm.workspace.collectAsStateWithLifecycle()
+    val selectedBot by vm.selected.collectAsStateWithLifecycle()
     val stack = rememberSaveable(saver = listSaver<SnapshotStateList<String>, String>(
         save = { it.toList() }, restore = { it.toMutableStateList() },
     )) { mutableStateListOf("workspace") }
@@ -94,15 +95,11 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel(), accountVm: AccountViewModel =
                 }
             }
         }
-        val safeInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.ime)
         AvatarHost(onNotice = vm::notice) {
-        Scaffold(
-            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).windowInsetsPadding(safeInsets),
-            contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            containerColor = MaterialTheme.colorScheme.background,
-            snackbarHost = { SnackbarHost(snackbar) },
+        AppFrame(snackbar,
             bottomBar = {
-                if (!imeVisible && stack.last() in listOf("workspace", "library", "appearance")) BottomDock(stack.last(), ::selectRoot)
+                val inChat = stack.last() == "workspace" && shellState.workspace.bots.any { it.id == selectedBot }
+                if (!imeVisible && !inChat && stack.last() in listOf("workspace", "library", "appearance")) BottomDock(stack.last(), ::selectRoot)
             },
         ) { padding ->
             NavDisplay(
@@ -129,22 +126,28 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel(), accountVm: AccountViewModel =
     }
 }
 
+/** One inset owner, shared by every production route and exercised with the real IME. */
+@Composable
+internal fun AppFrame(snackbar: SnackbarHostState, bottomBar: @Composable () -> Unit,
+    content: @Composable (PaddingValues) -> Unit) {
+    val safeInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.ime)
+    Scaffold(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).windowInsetsPadding(safeInsets),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0), containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbar) }, bottomBar = bottomBar, content = content)
+}
+
 @Composable
 private fun WorkspaceRoute(vm: WorkspaceViewModel, add: () -> Unit, edit: (String) -> Unit, open: (String) -> Unit, account: () -> Unit, live: LiveBotViewModel = viewModel()) {
     val state by vm.workspace.collectAsStateWithLifecycle()
     val selected by vm.selected.collectAsStateWithLifecycle()
-    val timeline by vm.timeline.collectAsStateWithLifecycle()
-    val draft by vm.draft.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
-    val reply = stringResource(R.string.preview_reply)
     val liveState by live.state.collectAsStateWithLifecycle()
     val liveDraft by live.draft.collectAsStateWithLifecycle()
     val username = state.workspace.bots.firstOrNull { it.id == selected }?.username
     val context = LocalContext.current
     LaunchedEffect(username) { live.select(username) }
     DisposableEffect(Unit) { onDispose { live.select(null) } }
-    WorkspaceScreen(state, selected, timeline, draft, busy, vm::select, add, edit, vm::remove,
-        vm::move, open, vm::updateDraft, { vm.sendPreview(reply) }, vm::activate) { bot ->
+    WorkspaceScreen(state, selected, busy, vm::select, add, edit, vm::remove, vm::move, open) { bot ->
         val visibleState = liveState.takeIf { it.username == bot.username }
             ?: ConversationState(bot.username, ConversationStatus.LOADING)
         com.ahmed9461.botos.media.ReceivedMediaHost(visibleState.timeline?.chat) {
@@ -189,24 +192,22 @@ private fun LibraryRoute(vm: WorkspaceViewModel, add: () -> Unit, edit: (String)
 
 @Composable
 private fun BottomDock(selected: String, onSelect: (String) -> Unit) {
-    val destinations = listOf(Triple("workspace", R.string.workspace, Glyph.SPACE),
+    val destinations = listOf(Triple("workspace", R.string.chat_list_title, Glyph.CHAT),
         Triple("library", R.string.library, Glyph.LIBRARY), Triple("appearance", R.string.appearance, Glyph.APPEARANCE))
-    Box(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
-        Surface(modifier = Modifier.widthIn(max = 440.dp).fillMaxWidth().testTag("bottom-dock"),
-            shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-            Row(Modifier.selectableGroup().padding(6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth().testTag("bottom-dock")) {
+        Column {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .6f))
+            Row(Modifier.fillMaxWidth().selectableGroup().padding(horizontal = 16.dp, vertical = 3.dp)) {
                 destinations.forEach { (route, label, glyph) ->
                     val active = selected == route
-                    Surface(modifier = Modifier.weight(1f), shape = RoundedCornerShape(18.dp),
-                        color = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface) {
-                        Column(Modifier.testTag("nav-$route").selectable(active, role = Role.Tab, onClick = { onSelect(route) })
-                            .heightIn(min = 56.dp).padding(horizontal = 4.dp, vertical = 7.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            val tint = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                            BotGlyph(glyph, modifier = Modifier.size(21.dp), tint = tint)
-                            Text(stringResource(label), style = MaterialTheme.typography.labelMedium, color = tint)
-                        }
+                    val tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    Column(Modifier.weight(1f).testTag("nav-$route")
+                        .selectable(active, role = Role.Tab, onClick = { onSelect(route) })
+                        .heightIn(min = 60.dp).padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        BotGlyph(glyph, modifier = Modifier.size(23.dp), tint = tint)
+                        Text(stringResource(label), style = MaterialTheme.typography.labelMedium, color = tint,
+                            fontWeight = if (active) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal)
                     }
                 }
             }

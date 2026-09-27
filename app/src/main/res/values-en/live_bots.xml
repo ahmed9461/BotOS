@@ -51,6 +51,6 @@
     <string name="outgoing_sending">Attachment is being sent.</string>
     <string name="outgoing_failed">An attachment could not be sent. Check the conversation before choosing another file.</string>
     <string name="outgoing_uncertain">No delivery confirmation arrived. Check the conversation before trying again.</string>
-    <string name="outgoing_target_changed">The conversation changed; the attachment preview was cancelled.</string>
+    <string name="outgoing_target_changed">The conversation changed; attachment preparation was cancelled.</string>
     <string name="outgoing_unavailable">The attachment could not be prepared. Check the file and available space.</string>
 </resources>

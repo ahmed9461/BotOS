@@ -12,7 +12,7 @@ destination = root / 'diagnostics/ui/screenshots'
 destination.mkdir(parents=True, exist_ok=True)
 required = ['appearance-light-ar.png', 'appearance-dark-ar.png', 'appearance-restored-ar.png',
             'workspace-ar.png', 'keyboard-ar.png', 'library-ar.png', 'editor-ar.png', 'account-unconfigured-ar.png',
-            'rich-chat-light-ar.png', 'rich-chat-dark-ar.png', 'rich-chat-switcher-ar.png', 'avatars-library-ar.png', 'streaming-reply-ar.png', 'received-media-light-ar.png', 'received-media-dark-ar.png', 'received-sticker-ar.png', 'received-video-ar.png', 'received-webm-ar.png', 'outgoing-preview-light-ar.png', 'outgoing-preview-dark-ar.png', 'outgoing-voice-dark-ar.png', 'keyboard-gap.txt']
+            'rich-chat-light-ar.png', 'rich-chat-dark-ar.png', 'rich-chat-switcher-ar.png', 'avatars-library-ar.png', 'streaming-reply-ar.png', 'received-media-light-ar.png', 'received-media-dark-ar.png', 'received-sticker-ar.png', 'received-video-ar.png', 'received-webm-ar.png', 'outgoing-preview-light-ar.png', 'outgoing-preview-dark-ar.png', 'outgoing-voice-dark-ar.png', 'chat-list-light-ar.png', 'chat-list-dark-ar.png', 'media-picker-ar.png', 'media-portrait-ar.png', 'media-fullscreen-ar.png', 'messenger-large-text-ar.png', 'keyboard-gap.txt']
 for name in required:
     matches = [p for p in outputs.rglob(name) if p.is_file() and 'additional_output' in str(p)]
     if len(matches) != 1:
@@ -34,7 +34,7 @@ for name in required:
     shutil.copyfile(matches[0], destination / name)
 reports = list((outputs / 'androidTest-results').rglob('TEST-*.xml'))
 suites = [ET.parse(path).getroot() for path in reports]
-assert sum(int(s.get('tests', 0)) for s in suites) == 77, 'Expected 70 prior app cases and seven voice recording/session/lifecycle cases'
+assert sum(int(s.get('tests', 0)) for s in suites) == 85, 'Expected 77 existing app cases plus eight messenger navigation/media/composer/IME cases'
 assert all(int(s.get(k, 0)) == 0 for s in suites for k in ('failures', 'errors', 'skipped')), 'App device test did not pass'
 outgoing_cases = {case.get('name') for suite in suites for case in suite.iter('testcase')
                   if case.get('classname') == 'com.ahmed9461.botos.OutgoingRetentionTest'}
@@ -84,4 +84,18 @@ assert any(case.get('name') == 'voiceCaptureStopsWhenActivityLeavesForeground'
            for suite in suites for case in suite.iter('testcase')), 'Expected foreground microphone lifecycle case'
 assert any(case.get('name') == 'attachmentMenuOffersOnlyChosenKindsAndDoesNotSendOnOpening'
            for suite in suites for case in suite.iter('testcase')), 'Expected live composer attachment menu case'
-print('All twenty-one device screenshots, seventy-seven app tests and keyboard measurement verified.')
+messenger_cases = {case.get('name') for suite in suites for case in suite.iter('testcase')
+                   if case.get('classname') == 'com.ahmed9461.botos.MessengerUiTest'}
+assert messenger_cases == {
+    'realChatListSearchesSavedBotsAndSystemBackReturnsWithoutPreview',
+    'microphoneAndTextSendAreSeparateExplicitActionsAndPickerHasRealKinds',
+    'portraitPhotoHasNoOversizedFrameAndFullscreenZoomResetsPan',
+    'mediaGeometryPreservesPortraitLandscapeAndExtremeRatiosWithinBounds',
+    'largeTextAndNarrowChatKeepHeaderAndComposerControlsAccessible',
+    'scrollingShowsAnExplicitJumpToLatestWithoutInventingUnreadCounts',
+}, 'Expected all six production messenger UI cases'
+assert any(case.get('name') == 'actualConversationComposerTracksTheRealKeyboardWithoutADockGap'
+           for suite in suites for case in suite.iter('testcase')), 'Expected actual conversation real-IME case'
+assert any(case.get('name') == 'e_savedBotOpensARealConnectionGateAndBackRestoresTheList'
+           for suite in suites for case in suite.iter('testcase')), 'Expected real app navigation and persistence case'
+print('All twenty-seven device screenshots, eighty-five app tests and keyboard measurement verified.')

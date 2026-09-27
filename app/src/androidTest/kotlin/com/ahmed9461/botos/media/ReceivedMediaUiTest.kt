@@ -59,7 +59,7 @@ class ReceivedMediaUiTest {
             }
             if (selected) ReceivedMediaViewer(picture) { selected = false }
         }
-        ui.onNodeWithTag("received-image-image").assertIsDisplayed()
+        ui.onNodeWithTag("received-image-image", useUnmergedTree = true).assertIsDisplayed()
         ui.onNodeWithText("صورة تجريبية داخل المحادثة").assertIsDisplayed()
         screenshot("received-media-light-ar")
         ui.onNodeWithTag("media-open-image").performClick()
@@ -106,7 +106,7 @@ class ReceivedMediaUiTest {
                 ReceivedMediaItem(ref, info.copy(kind = MediaKind.ANIMATION, mimeType = "application/x-tgsticker"))
             }
         }
-        ui.onNodeWithTag("received-sticker-image").assertIsDisplayed()
+        ui.onNodeWithTag("received-sticker-image", useUnmergedTree = true).assertIsDisplayed()
         ui.onNodeWithTag("media-open-image").performClick()
         ui.runOnIdle { assertTrue(opened) }
         screenshot("received-sticker-ar")

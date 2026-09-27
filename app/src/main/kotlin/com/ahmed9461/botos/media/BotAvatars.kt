@@ -24,7 +24,7 @@ private sealed interface AvatarSource {
 
 /** One process-owned coordinator. Renderers get pixels, not paths, accounts or network clients. */
 internal class BotAvatars(context: Context, account: AccountCoordinator, files: TelegramFiles,
-    profiles: BotProfiles, scope: CoroutineScope) {
+    private val profiles: BotProfiles, scope: CoroutineScope) {
     private val application = context.applicationContext
     private val store = LocalAvatarStore(File(application.noBackupFilesDir, "bot-avatars"))
     private val bookmarks = MutableStateFlow<List<SavedBot>>(emptyList())
@@ -85,6 +85,7 @@ internal class BotAvatars(context: Context, account: AccountCoordinator, files: 
             }
         }
     }
+    fun refresh(bot: SavedBot) { if (contains(bot)) profiles.refresh(bot.username) }
     fun contains(bot: SavedBot) = bookmarks.value.any { it.id == bot.id && it.username == bot.username }
     private fun containsKey(key: String) = bookmarks.value.any { LocalAvatarStore.key(it) == key }
     suspend fun import(bot: SavedBot, uri: Uri) {

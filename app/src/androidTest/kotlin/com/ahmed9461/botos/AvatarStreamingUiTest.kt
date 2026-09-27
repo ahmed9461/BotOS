@@ -70,8 +70,8 @@ class AvatarStreamingUiTest {
         draw {
             CompositionLocalProvider(LocalAvatarSnapshot provides AvatarSnapshot(mapOf(LocalAvatarStore.key(bot) to picture))) {
                 if (library) LibraryScreen(StoreSnapshot(Workspace(listOf(bot))), {}, {})
-                else WorkspaceScreen(StoreSnapshot(Workspace(listOf(bot))), bot.id, MessageTimeline(chat), "", false,
-                    {}, {}, {}, {}, { _, _ -> }, {}, {}, {}, {}, liveContent = {})
+                else WorkspaceScreen(StoreSnapshot(Workspace(listOf(bot))), bot.id, false,
+                    {}, {}, {}, {}, { _, _ -> }, {}, liveContent = {})
             }
         }
         ui.onNodeWithTag("avatar-image-fixture", useUnmergedTree = true).assertIsDisplayed()

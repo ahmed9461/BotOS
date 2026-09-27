@@ -14,6 +14,8 @@ class UiHarnessContractTest(unittest.TestCase):
             / "app/src/androidTest/kotlin/com/ahmed9461/botos/UiRegressionTest.kt"
         ).read_text()
 
+        cls.ime_test = (ROOT / "app/src/androidTest/kotlin/com/ahmed9461/botos/MessengerImeTest.kt").read_text()
+
     def test_menu_key_is_not_used_to_unlock_or_prepare_home(self):
         self.assertNotIn("shell input keyevent 82", self.script)
         self.assertNotIn("shell input keyevent KEYCODE_MENU", self.script)
@@ -47,11 +49,16 @@ class UiHarnessContractTest(unittest.TestCase):
             "ui.waitUntil(10_000) { windowSnapshot().focused }", self.ui_test
         )
         self.assertIn(
-            "gapDp >= -2f && gapDp <= 12f", self.ui_test
+            "gapDp >= -2f && gapDp <= 12f", self.ime_test
         )
         self.assertIn(
-            "ui.waitUntil(15_000) { windowSnapshot().imeVisible }", self.ui_test
+            "ui.waitUntil(15_000) { window().ime }", self.ime_test
         )
+
+        self.assertIn("AppFrame(remember { SnackbarHostState() }", self.ime_test)
+        self.assertIn("LiveBotPanel(ConversationState", self.ime_test)
+        self.assertNotIn(".imePadding(", self.ime_test)
+        self.assertNotIn("PreviewGateway", self.ime_test)
 
 
 if __name__ == "__main__":

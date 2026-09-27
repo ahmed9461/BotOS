@@ -51,6 +51,6 @@
     <string name="outgoing_sending">المرفق قيد الإرسال.</string>
     <string name="outgoing_failed">تعذر إرسال مرفق. راجع المحادثة قبل اختيار ملف جديد.</string>
     <string name="outgoing_uncertain">لم يصل تأكيد إرسال المرفق. راجع المحادثة قبل المحاولة مجددًا.</string>
-    <string name="outgoing_target_changed">تغيرت المحادثة؛ أُلغيت معاينة المرفق.</string>
+    <string name="outgoing_target_changed">تغيرت المحادثة؛ أُلغي تجهيز المرفق.</string>
     <string name="outgoing_unavailable">تعذر تجهيز المرفق الآن. تأكد من الملف والمساحة المتاحة.</string>
 </resources>

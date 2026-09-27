@@ -40,6 +40,10 @@ internal class AvatarViewModel(application: Application) : AndroidViewModel(appl
         if (uri == null) return
         mutate { avatars.import(bot, uri) }
     }
+    fun refresh() {
+        val bot = _target.value ?: return
+        if (!_busy.value) { avatars.refresh(bot); _target.value = null }
+    }
     fun reset() {
         val bot = _target.value ?: return
         mutate { avatars.reset(bot) }

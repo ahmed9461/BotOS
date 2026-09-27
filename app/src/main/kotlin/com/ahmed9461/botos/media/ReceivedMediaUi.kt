@@ -5,7 +5,9 @@ import android.graphics.drawable.Animatable
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.widget.ImageView
+import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
@@ -16,6 +18,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.stateDescription
+import com.ahmed9461.botos.design.BotGlyph
+import com.ahmed9461.botos.design.Glyph
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInWindow
@@ -53,6 +66,9 @@ internal data class MediaUiActions(
     val cancel: (MediaReference) -> Unit,
     val open: (MediaReference) -> Unit,
 )
+internal val MediaPanXKey = SemanticsPropertyKey<Float>("BotOSMediaPanX")
+internal val MediaPanYKey = SemanticsPropertyKey<Float>("BotOSMediaPanY")
+internal val MediaZoomScaleKey = SemanticsPropertyKey<Float>("BotOSMediaZoomScale")
 internal val MediaFrameRenderedKey = SemanticsPropertyKey<Boolean>("BotOSMediaFrameRendered")
 internal val LocalMediaUi = staticCompositionLocalOf<MediaUiActions?> { null }
 
@@ -89,51 +105,70 @@ internal fun ReceivedMediaItem(reference: MediaReference, info: MediaInfo): Bool
     LaunchedEffect(reference, visible) { if (visible) ui.request(reference, true) }
     val state = ui.snapshot.items[reference]
     val kindLabel = mediaLabel(info)
-    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(13.dp),
-        modifier = Modifier.fillMaxWidth().onGloballyPositioned { coordinates ->
-            val bounds = coordinates.boundsInWindow()
-            visible = bounds.width > 1f && bounds.height > 1f
-        }.testTag("received-media-${reference.blockId}")) {
-        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            val decoded = state?.content
-            if (decoded is DecodedMedia.Picture) {
-                val ratio = (decoded.bitmap.width.toFloat() / decoded.bitmap.height).coerceIn(.65f, 1.8f)
-                Image(decoded.bitmap.asImageBitmap(), kindLabel,
-                    Modifier.fillMaxWidth().aspectRatio(ratio).heightIn(max = 260.dp)
-                        .clickable { ui.open(reference) }.testTag("received-image-${reference.blockId}"),
-                    contentScale = ContentScale.Fit)
-            } else if (decoded is DecodedMedia.Sticker) {
-                StickerImage(decoded, animate = false, Modifier.fillMaxWidth().height(170.dp)
-                    .clickable { ui.open(reference) }.testTag("received-sticker-${reference.blockId}"))
-            }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text(kindLabel, style = MaterialTheme.typography.labelLarge)
-                    val detail = listOfNotNull(info.durationSeconds?.takeIf { it > 0 }?.let { "%d:%02d".format(it / 60, it % 60) },
-                        info.size?.takeIf { it > 0 }?.let { mediaSize(it) }).joinToString(" · ")
-                    if (detail.isNotEmpty()) Text(detail, style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                when (state?.stage) {
-                    MediaStage.LOADING -> TextButton(onClick = { ui.cancel(reference) }, modifier = Modifier.testTag("media-cancel-${reference.blockId}")) {
-                        Text(stringResource(R.string.cancel))
-                    }
-                    MediaStage.READY -> TextButton(onClick = { ui.open(reference) }, modifier = Modifier.testTag("media-open-${reference.blockId}")) {
-                        Text(stringResource(if (decoded is DecodedMedia.Playback) R.string.media_play else R.string.media_view))
-                    }
-                    else -> TextButton(onClick = { ui.request(reference, false) }, modifier = Modifier.testTag("media-download-${reference.blockId}")) {
-                        Text(stringResource(if (state?.stage == MediaStage.FAILED) R.string.media_retry else R.string.media_download))
-                    }
+    val decoded = state?.takeIf { it.stage == MediaStage.READY }?.content
+    BoxWithConstraints(Modifier.widthIn(max = 340.dp).onGloballyPositioned { coordinates ->
+        val bounds = coordinates.boundsInWindow()
+        visible = bounds.width > 1f && bounds.height > 1f
+    }.testTag("received-media-${reference.blockId}")) {
+        when (decoded) {
+            is DecodedMedia.Picture -> {
+                val extent = fitMedia(decoded.bitmap.width, decoded.bitmap.height, maxWidth.value, 360f)
+                Surface(onClick = { ui.open(reference) }, color = Color.Transparent, shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.size(extent.width.dp, extent.height.dp).testTag("media-open-${reference.blockId}")) {
+                    Image(decoded.bitmap.asImageBitmap(), kindLabel,
+                        Modifier.fillMaxSize().testTag("received-image-${reference.blockId}"), contentScale = ContentScale.Fit)
                 }
             }
-            if (state?.stage == MediaStage.LOADING) {
-                val progress = state.progress
-                if (progress == null) LinearProgressIndicator(Modifier.fillMaxWidth())
-                else LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+            is DecodedMedia.Sticker -> {
+                Surface(onClick = { ui.open(reference) }, color = Color.Transparent,
+                    modifier = Modifier.size(minOf(maxWidth, 200.dp)).testTag("media-open-${reference.blockId}")) {
+                    StickerImage(decoded, animate = false, Modifier.fillMaxSize().testTag("received-sticker-${reference.blockId}"))
+                }
             }
-            if (state?.stage == MediaStage.FAILED) Text(stringResource(R.string.media_unavailable),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else -> Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(16.dp)) {
+                Column(Modifier.widthIn(min = 180.dp).fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        val glyph = when (info.kind) {
+                            MediaKind.PHOTO -> Glyph.PHOTO
+                            MediaKind.VIDEO, MediaKind.ANIMATION -> Glyph.VIDEO
+                            MediaKind.VOICE_NOTE -> Glyph.MIC
+                            else -> Glyph.AUDIO
+                        }
+                        BotGlyph(glyph, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
+                        Column(Modifier.weight(1f)) {
+                            Text(info.title.takeIf { it.isNotBlank() } ?: kindLabel,
+                                style = MaterialTheme.typography.labelLarge, maxLines = 2,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            val detail = listOfNotNull(info.durationSeconds?.takeIf { it > 0 }?.let { "%d:%02d".format(it / 60, it % 60) },
+                                info.size?.takeIf { it > 0 }?.let { mediaSize(it) }).joinToString(" · ")
+                            if (detail.isNotEmpty()) Text(detail, style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        when (state?.stage) {
+                            MediaStage.LOADING -> IconButton(onClick = { ui.cancel(reference) },
+                                modifier = Modifier.size(48.dp).testTag("media-cancel-${reference.blockId}")) {
+                                BotGlyph(Glyph.CLOSE, stringResource(R.string.cancel))
+                            }
+                            MediaStage.READY -> FilledTonalIconButton(onClick = { ui.open(reference) },
+                                modifier = Modifier.size(48.dp).testTag("media-open-${reference.blockId}")) {
+                                BotGlyph(Glyph.PLAY, stringResource(R.string.media_play))
+                            }
+                            else -> IconButton(onClick = { ui.request(reference, false) },
+                                modifier = Modifier.size(48.dp).testTag("media-download-${reference.blockId}")) {
+                                BotGlyph(if (state?.stage == MediaStage.FAILED) Glyph.REFRESH else Glyph.DOWN,
+                                    stringResource(if (state?.stage == MediaStage.FAILED) R.string.media_retry else R.string.media_download))
+                            }
+                        }
+                    }
+                    if (state?.stage == MediaStage.LOADING) {
+                        val progress = state.progress
+                        if (progress == null) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        else LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                    }
+                    if (state?.stage == MediaStage.FAILED) Text(stringResource(R.string.media_unavailable),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
     }
     return true
@@ -163,18 +198,23 @@ internal fun ReceivedMediaViewer(media: DecodedMedia, onClose: () -> Unit) {
         owner.lifecycle.addObserver(observer)
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxWidth(.96f).heightIn(max = 600.dp).testTag("media-viewer"),
-            shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surface) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onClose, modifier = Modifier.testTag("media-viewer-close")) { Text(stringResource(R.string.close)) }
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Surface(Modifier.fillMaxSize().testTag("media-viewer"), color = Color.Black, contentColor = Color.White) {
+            // This is a separate window; app Scaffold insets do not apply here.
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onClose, modifier = Modifier.size(48.dp).testTag("media-viewer-close")) {
+                        BotGlyph(Glyph.CLOSE, stringResource(R.string.close), tint = Color.White)
+                    }
+                    Spacer(Modifier.weight(1f))
                 }
-                when (media) {
-                    is DecodedMedia.Picture -> if (media.animated && Build.VERSION.SDK_INT >= 28) AnimatedPicture(media) else ZoomPicture(media)
-                    is DecodedMedia.Sticker -> StickerImage(media, animate = LocalMotionMillis.current != 0,
-                        Modifier.fillMaxWidth().height(330.dp))
-                    is DecodedMedia.Playback -> PlaybackView(media)
+                Box(Modifier.weight(1f).fillMaxWidth().clipToBounds(), contentAlignment = Alignment.Center) {
+                    when (media) {
+                        is DecodedMedia.Picture -> if (media.animated && Build.VERSION.SDK_INT >= 28) AnimatedPicture(media) else ZoomPicture(media)
+                        is DecodedMedia.Sticker -> StickerImage(media, animate = LocalMotionMillis.current != 0, Modifier.fillMaxSize())
+                        is DecodedMedia.Playback -> PlaybackView(media)
+                    }
                 }
             }
         }
@@ -183,11 +223,49 @@ internal fun ReceivedMediaViewer(media: DecodedMedia, onClose: () -> Unit) {
 
 @Composable
 private fun ZoomPicture(media: DecodedMedia.Picture) {
-    var scale by remember(media) { mutableFloatStateOf(1f) }
-    val transform = rememberTransformableState { zoom, _, _ -> scale = (scale * zoom).coerceIn(1f, 4f) }
-    Box(Modifier.fillMaxWidth().height(380.dp).clipToBounds().transformable(transform)) {
+    var viewport by remember { mutableStateOf(IntSize.Zero) }
+    var scale by remember(media, viewport) { mutableFloatStateOf(1f) }
+    var offset by remember(media, viewport) { mutableStateOf(Offset.Zero) }
+    fun clamp(value: Offset, zoom: Float): Offset {
+        if (viewport.width == 0 || viewport.height == 0) return Offset.Zero
+        val fitted = fitMedia(media.bitmap.width, media.bitmap.height, viewport.width.toFloat(), viewport.height.toFloat())
+        val x = mediaPanLimit(fitted.width, viewport.width.toFloat(), zoom)
+        val y = mediaPanLimit(fitted.height, viewport.height.toFloat(), zoom)
+        return Offset(value.x.coerceIn(-x, x), value.y.coerceIn(-y, y))
+    }
+    fun reset() { scale = 1f; offset = Offset.Zero }
+    val transform = rememberTransformableState { zoom, pan, _ ->
+        val next = (scale * zoom).coerceIn(1f, 5f)
+        offset = clamp(offset + pan, next)
+        scale = next
+    }
+    val zoomIn = stringResource(R.string.media_zoom_in)
+    val zoomReset = stringResource(R.string.media_zoom_reset)
+    Box(Modifier.fillMaxSize().onSizeChanged { viewport = it }.clipToBounds()
+        .testTag("zoom-picture").semantics {
+            this[MediaZoomScaleKey] = scale
+            this[MediaPanXKey] = offset.x
+            this[MediaPanYKey] = offset.y
+            stateDescription = "${(scale * 100).toInt()}%"
+            customActions = listOf(CustomAccessibilityAction(zoomIn) { scale = (scale + 1).coerceAtMost(5f); true },
+                CustomAccessibilityAction(zoomReset) { reset(); true })
+        }.pointerInput(media, viewport) {
+            detectTapGestures(onDoubleTap = { point ->
+                if (scale > 1f) reset() else {
+                    scale = 2.5f
+                    val center = Offset(viewport.width / 2f, viewport.height / 2f)
+                    offset = clamp((center - point) * (scale - 1f), scale)
+                }
+            })
+        }.transformable(transform)) {
         Image(media.bitmap.asImageBitmap(), stringResource(R.string.rich_media_photo),
-            Modifier.fillMaxSize().graphicsLayer(scaleX = scale, scaleY = scale), contentScale = ContentScale.Fit)
+            Modifier.fillMaxSize().graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y),
+            contentScale = ContentScale.Fit)
+        FilledIconButton(onClick = { if (scale > 1f) reset() else scale = 2.5f },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).size(48.dp).testTag("media-zoom"),
+            colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFF292A30), contentColor = Color.White)) {
+            BotGlyph(if (scale > 1f) Glyph.REFRESH else Glyph.ADD, if (scale > 1f) zoomReset else zoomIn, tint = Color.White)
+        }
     }
 }
 
@@ -234,9 +312,9 @@ private fun AnimatedPicture(media: DecodedMedia.Picture) {
         onDispose { (drawable as? Animatable)?.stop() }
     }
     if (drawable != null) AndroidView(factory = { context -> ImageView(context).apply { scaleType = ImageView.ScaleType.FIT_CENTER } },
-        update = { it.setImageDrawable(drawable) }, modifier = Modifier.fillMaxWidth().height(350.dp))
+        update = { it.setImageDrawable(drawable) }, modifier = Modifier.fillMaxSize())
     else if (failed) ZoomPicture(media)
-    else Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+    else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
 }
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -264,12 +342,15 @@ private fun PlaybackView(media: DecodedMedia.Playback) {
             playback.close()
         }
     }
-    if (error) Text(stringResource(R.string.media_cannot_play), style = MaterialTheme.typography.bodyMedium)
+    if (error) {
+        Text(stringResource(R.string.media_cannot_play), Modifier.padding(24.dp), style = MaterialTheme.typography.bodyMedium)
+        return
+    }
     AndroidView(factory = { playerContext -> PlayerView(playerContext).apply {
         player = playback.player; useController = true
         setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         controllerShowTimeoutMs = if (media.mimeType.startsWith("audio/")) 0 else 4000
-    } }, modifier = Modifier.fillMaxWidth().height(if (media.mimeType.startsWith("audio/")) 140.dp else 330.dp)
+    } }, modifier = (if (media.mimeType.startsWith("audio/")) Modifier.fillMaxWidth().height(160.dp) else Modifier.fillMaxSize())
         .testTag("received-playback").semantics { this[MediaFrameRenderedKey] = firstFrame },
         update = { it.player = playback.player })
 }

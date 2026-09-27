@@ -51,8 +51,8 @@ class RichChatRegressionTest {
             BotOsTheme(theme, true) {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                        WorkspaceScreen(StoreSnapshot(Workspace(listOf(bot))), "fixture", fixture(), "", false,
-                            {}, {}, {}, {}, { _, _ -> }, {}, {}, {}, {}, liveContent = {
+                        WorkspaceScreen(StoreSnapshot(Workspace(listOf(bot))), "fixture", false,
+                            {}, {}, {}, {}, { _, _ -> }, {}, liveContent = {
                                 LiveBotPanel(ConversationState("fixture_bot", ConversationStatus.READY, fixture()),
                                     "", {}, {}, {}, {}, {}, {}, {}, {}, {})
                             })

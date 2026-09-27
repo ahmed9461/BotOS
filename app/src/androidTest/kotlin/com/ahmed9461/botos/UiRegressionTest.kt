@@ -141,36 +141,14 @@ class UiRegressionTest {
         screenshot("appearance-restored-ar")
     }
 
-    @Test fun b_composerTracksRealImeWithoutAnEmptyDock() {
+    @Test fun b_homeIsTheRealChatListWithoutPreviewOrSyntheticMessages() {
         ui.onNodeWithTag("nav-workspace").performClick()
-        ui.onNodeWithTag("preview-mode").assertIsDisplayed()
-        ui.onNodeWithTag("bot-switcher").assertIsDisplayed()
+        ui.onNodeWithTag("chat-list").assertIsDisplayed()
+        ui.onNodeWithTag("preview-mode").assertDoesNotExist()
+        ui.onNodeWithTag("message-list").assertDoesNotExist()
+        ui.onNodeWithTag("add-bot").assertIsDisplayed()
+        ui.onNodeWithTag("bottom-dock").assertIsDisplayed()
         screenshot("workspace-ar")
-        windowReady()
-        ui.onNodeWithTag("composer-input").assertIsDisplayed().performTouchInput { click() }
-        try {
-            ui.waitUntil(15_000) { windowSnapshot().imeVisible }
-        } catch (failure: ComposeTimeoutException) {
-            try { screenshot("keyboard-not-shown") }
-            catch (captureFailure: Exception) { failure.addSuppressed(captureFailure) }
-            throw failure
-        }
-        ui.onNodeWithTag("composer-input").assertIsFocused().performTextInput("رسالة تجريبية")
-        ui.onNodeWithTag("bottom-dock").assertDoesNotExist()
-        ui.waitForIdle()
-        val window = windowSnapshot()
-        val composer = ui.onNodeWithTag("composer-bar").fetchSemanticsNode().boundsInWindow
-        val gap = window.rootHeight - window.imeBottom - composer.bottom
-        val gapDp = gap / window.density
-        PlatformTestStorageRegistry.getInstance().openOutputFile("keyboard-gap.txt").bufferedWriter().use {
-            it.write("rootHeight=${window.rootHeight}\nimeBottom=${window.imeBottom}\ncomposerBottom=${composer.bottom}\ngapDp=$gapDp\n")
-        }
-        screenshot("keyboard-ar")
-        assertTrue("Composer overlaps IME or leaves an excessive gap: $gapDp dp", gapDp >= -2f && gapDp <= 12f)
-        ui.onNodeWithTag("send-preview").performClick()
-        ui.onNodeWithTag("composer-input").assert(
-            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(""))
-        )
     }
 
     @Test fun c_libraryAndEditorNavigationPreserveInputOnRecreation() {
@@ -199,5 +177,28 @@ class UiRegressionTest {
         screenshot("account-unconfigured-ar")
         ui.onNodeWithTag("account-back").performClick()
         ui.onNodeWithTag("nav-appearance").assertIsSelected()
+    }
+    @Test fun e_savedBotOpensARealConnectionGateAndBackRestoresTheList() {
+        val removeLabel = ui.activity.getString(R.string.remove)
+        ui.onNodeWithTag("nav-workspace").performClick()
+        enabled("add-bot")
+        ui.onNodeWithTag("add-bot").performClick()
+        ui.onNodeWithTag("bot-username").performTextInput("botos_fixture_bot")
+        ui.onNodeWithTag("bot-title").performTextInput("بوت الاختبار")
+        ui.onNodeWithTag("save-bot").performClick()
+        ui.waitUntil(10_000) { ui.onAllNodesWithTag("live-connect-account").fetchSemanticsNodes().isNotEmpty() }
+        ui.onNodeWithTag("bottom-dock").assertDoesNotExist()
+        ui.onNodeWithTag("live-input").assertDoesNotExist()
+        ui.onNodeWithTag("chat-back").performClick()
+        ui.onNodeWithTag("bottom-dock").assertIsDisplayed()
+        ui.activityRule.scenario.recreate()
+        ui.waitUntil(10_000) { ui.onAllNodesWithText("@botos_fixture_bot").fetchSemanticsNodes().isNotEmpty() }
+        ui.onNodeWithText("@botos_fixture_bot").performClick()
+        ui.onNodeWithTag("bot-actions").performClick()
+        ui.onAllNodesWithText(removeLabel).filter(hasClickAction()).onFirst().performClick()
+        ui.onAllNodesWithText(removeLabel).filter(hasClickAction()).onFirst().performClick()
+        ui.waitUntil(10_000) { ui.onAllNodesWithText("@botos_fixture_bot").fetchSemanticsNodes().isEmpty() }
+        ui.onNodeWithTag("chat-list").assertIsDisplayed()
+        ui.onNodeWithTag("bottom-dock").assertIsDisplayed()
     }
 }
