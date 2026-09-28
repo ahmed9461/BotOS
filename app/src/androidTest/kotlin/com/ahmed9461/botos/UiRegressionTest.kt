@@ -112,6 +112,26 @@ class UiRegressionTest {
         } finally { bitmap.recycle() }
     }
 
+    private fun chatListReady() {
+        try {
+            // StateFlow collection and the platform IME finish outside Compose's test clock.
+            ui.waitUntil(5_000) {
+                val window = windowSnapshot()
+                !window.imeVisible && window.imeBottom == 0 &&
+                    ui.onAllNodesWithTag("chat-list").fetchSemanticsNodes().isNotEmpty() &&
+                    ui.onAllNodesWithTag("bottom-dock").fetchSemanticsNodes().isNotEmpty()
+            }
+            ui.onNodeWithTag("chat-list").assertIsDisplayed()
+            ui.onNodeWithTag("bottom-dock").assertIsDisplayed()
+        } catch (failure: Throwable) {
+            try {
+                Log.e("BotOSUiTest", "chat_list_return_failed: ${windowSnapshot()}")
+                screenshot("chat-list-return-failure")
+            } catch (captureFailure: Throwable) { failure.addSuppressed(captureFailure) }
+            throw failure
+        }
+    }
+
     @Test fun a_preferencesUpdateInPlaceAndSurviveRecreation() {
         ui.onNodeWithTag("nav-appearance").performClick()
         enabled("motion-toggle")
@@ -184,12 +204,14 @@ class UiRegressionTest {
         ui.onNodeWithTag("add-bot").performClick()
         ui.onNodeWithTag("bot-username").performTextInput("botos_fixture_bot")
         ui.onNodeWithTag("bot-title").performTextInput("بوت الاختبار")
+        ui.onNodeWithTag("bot-title").performClick()
+        ui.waitUntil(10_000) { windowSnapshot().imeVisible }
         ui.onNodeWithTag("save-bot").performClick()
         ui.waitUntil(10_000) { ui.onAllNodesWithTag("live-connect-account").fetchSemanticsNodes().isNotEmpty() }
         ui.onNodeWithTag("bottom-dock").assertDoesNotExist()
         ui.onNodeWithTag("live-input").assertDoesNotExist()
         ui.onNodeWithTag("chat-back").performClick()
-        ui.onNodeWithTag("bottom-dock").assertIsDisplayed()
+        chatListReady()
         ui.activityRule.scenario.recreate()
         ui.waitUntil(10_000) { ui.onAllNodesWithText("@botos_fixture_bot").fetchSemanticsNodes().isNotEmpty() }
         ui.onNodeWithText("@botos_fixture_bot").performClick()
@@ -197,7 +219,6 @@ class UiRegressionTest {
         ui.onAllNodesWithText(removeLabel).filter(hasClickAction()).onFirst().performClick()
         ui.onAllNodesWithText(removeLabel).filter(hasClickAction()).onFirst().performClick()
         ui.waitUntil(10_000) { ui.onAllNodesWithText("@botos_fixture_bot").fetchSemanticsNodes().isEmpty() }
-        ui.onNodeWithTag("chat-list").assertIsDisplayed()
-        ui.onNodeWithTag("bottom-dock").assertIsDisplayed()
+        chatListReady()
     }
 }
