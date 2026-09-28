@@ -49,8 +49,9 @@ class LiveBotPanelTest {
         val timeline = MessageTimeline(key, listOf(BotMessage(1, key, 1, listOf(Block.Paragraph("text", "رسالة اختبار")), true, DeliveryState.PENDING)))
         render(ConversationState("fixture_bot", ConversationStatus.READY, timeline))
         ui.onNodeWithTag("delivery-1").assertIsDisplayed()
-        ui.onNodeWithTag("live-send").assertIsNotEnabled()
+        ui.onNodeWithTag("live-voice").assertIsNotEnabled()
         ui.runOnIdle { assertEquals(0, starts) }
+        ui.onNodeWithTag("live-commands").performClick()
         ui.onNodeWithTag("live-start").performClick()
         ui.runOnIdle { assertEquals(1, starts) }
     }
@@ -94,16 +95,15 @@ class LiveBotPanelTest {
             assertTrue("Outgoing bubble must not consume the full chat width", bubble.width < root.width * .9f)
         }
     }
-    @Test fun workspaceUsesDropdownSwitcherInsteadOfPermanentBotTabs() {
+    @Test fun workspaceUsesSheetSwitcherInsteadOfPermanentBotTabs() {
         val bots = listOf(SavedBot("one", "first_bot", "الأول"), SavedBot("two", "second_bot", "الثاني"))
         var selected by mutableStateOf("one")
         val key = ChatKey("fixture", "100")
         ui.setContent {
             BotOsTheme(ThemeMode.LIGHT, true) {
                 WorkspaceScreen(snapshot = StoreSnapshot(Workspace(bots = bots)), selectedId = selected,
-                    timeline = MessageTimeline(key), draft = "", busy = false, onSelect = { selected = it },
+                    busy = false, onSelect = { selected = it },
                     onAdd = {}, onEdit = {}, onDelete = {}, onMove = { _, _ -> }, onOpenTelegram = {},
-                    onDraft = {}, onSend = {}, onAction = {},
                     liveContent = { Box(Modifier.fillMaxSize().testTag("fixture-live-content")) })
             }
         }

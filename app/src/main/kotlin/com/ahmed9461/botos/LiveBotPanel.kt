@@ -77,32 +77,6 @@ internal fun LiveBotPanel(
             }
 
             ConversationStatus.READY -> {
-                Row(
-                    Modifier.fillMaxWidth().heightIn(min = 34.dp).testTag("live-toolbar"),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    TextButton(
-                        onClick = onStart,
-                        enabled = !state.busy,
-                        modifier = Modifier.heightIn(min = 34.dp).testTag("live-start"),
-                        contentPadding = PaddingValues(horizontal = 9.dp, vertical = 2.dp),
-                    ) {
-                        Text(stringResource(R.string.live_start), style = MaterialTheme.typography.labelMedium)
-                    }
-                    IconButton(
-                        onClick = onReload,
-                        enabled = !state.busy,
-                        modifier = Modifier.size(34.dp).testTag("live-reload"),
-                    ) {
-                        BotGlyph(
-                            Glyph.SPACE,
-                            stringResource(R.string.account_retry),
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                }
-
                 state.timeline?.let {
                     MessageTimelineView(it, onAction, Modifier.weight(1f), state.pending, onStopPending, state.busy)
                 } ?: Spacer(Modifier.weight(1f))
@@ -151,7 +125,7 @@ internal fun LiveBotPanel(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.testTag("outgoing-status"))
                 }
-                LiveComposer(draft, onDraft, onSend, state.busy, attachmentEnabled, onAttach)
+                LiveComposer(draft, onDraft, onSend, state.busy, attachmentEnabled, onAttach, onStart, onReload)
             }
         }
     }
@@ -186,84 +160,101 @@ internal fun LiveBotPanel(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LiveComposer(
-    draft: String,
-    onDraft: (String) -> Unit,
-    onSend: () -> Unit,
-    busy: Boolean,
-    attachmentEnabled: Boolean,
-    onAttach: (AttachmentKind) -> Unit,
+internal fun LiveComposer(
+    draft: String, onDraft: (String) -> Unit, onSend: () -> Unit, busy: Boolean,
+    attachmentEnabled: Boolean, onAttach: (AttachmentKind) -> Unit,
+    onStart: () -> Unit, onReload: () -> Unit,
 ) {
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
     var options by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    LaunchedEffect(attachmentEnabled, busy) { if (!attachmentEnabled || busy) options = false }
-    // BotOsApp owns IME/system insets. This composer must not add them again.
-    Row(
-        Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 5.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        Box {
-            FilledTonalIconButton(onClick = { options = true }, enabled = attachmentEnabled && !busy,
-                modifier = Modifier.size(46.dp).testTag("outgoing-add"), shape = RoundedCornerShape(16.dp)) {
-                BotGlyph(Glyph.ADD, stringResource(R.string.outgoing_add), modifier = Modifier.size(20.dp))
-            }
-            DropdownMenu(expanded = options, onDismissRequest = { options = false }) {
-                listOf(
-                    AttachmentKind.PHOTO to R.string.outgoing_choose_photo,
-                    AttachmentKind.VIDEO to R.string.outgoing_choose_video,
-                    AttachmentKind.AUDIO to R.string.outgoing_choose_audio,
-                    AttachmentKind.VOICE to R.string.outgoing_record_voice,
-                    AttachmentKind.DOCUMENT to R.string.outgoing_choose_file,
-                ).forEach { (kind, label) ->
-                    DropdownMenuItem(text = { Text(stringResource(label)) },
-                        onClick = { options = false; onAttach(kind) },
-                        modifier = Modifier.testTag("outgoing-option-${kind.name.lowercase()}"))
+    var commands by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    LaunchedEffect(attachmentEnabled, busy) {
+        if (!attachmentEnabled || busy) options = false
+        if (busy) commands = false
+    }
+    // Only the app owns IME insets. A modal sheet owns its separate window.
+    Row(Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 5.dp).testTag("composer-bar"),
+        horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Bottom) {
+        IconButton(onClick = { focus.clearFocus(); options = true }, enabled = attachmentEnabled && !busy,
+            modifier = Modifier.size(48.dp).testTag("outgoing-add")) {
+            BotGlyph(Glyph.ADD, stringResource(R.string.outgoing_add), modifier = Modifier.size(26.dp),
+                tint = if (attachmentEnabled && !busy) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Surface(modifier = Modifier.weight(1f), shape = RoundedCornerShape(25.dp), color = MaterialTheme.colorScheme.surface) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                BasicTextField(value = draft, onValueChange = onDraft, enabled = !busy, maxLines = 5,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface,
+                        textDirection = TextDirection.Content),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("live-input"),
+                    decorationBox = { field ->
+                        Box(Modifier.padding(start = 15.dp, end = 2.dp, top = 12.dp, bottom = 12.dp), contentAlignment = Alignment.CenterStart) {
+                            if (draft.isEmpty()) Text(stringResource(R.string.live_message_hint),
+                                style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            field()
+                        }
+                    })
+                Box {
+                    IconButton(onClick = { commands = true }, enabled = !busy,
+                        modifier = Modifier.size(48.dp).testTag("live-commands")) {
+                        BotGlyph(Glyph.COMMAND, stringResource(R.string.chat_commands), modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    DropdownMenu(commands, onDismissRequest = { commands = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.live_start)) },
+                            leadingIcon = { BotGlyph(Glyph.PLAY) },
+                            onClick = { commands = false; onStart() }, modifier = Modifier.testTag("live-start"))
+                        DropdownMenuItem(text = { Text(stringResource(R.string.account_retry)) },
+                            leadingIcon = { BotGlyph(Glyph.REFRESH) },
+                            onClick = { commands = false; onReload() }, modifier = Modifier.testTag("live-reload"))
+                    }
                 }
             }
         }
-        Surface(
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(22.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        ) {
-            BasicTextField(
-                value = draft,
-                onValueChange = onDraft,
-                enabled = !busy,
-                maxLines = 4,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textDirection = TextDirection.Content,
-                ),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp).testTag("live-input"),
-                decorationBox = { field ->
-                    Box(
-                        Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        if (draft.isEmpty()) {
-                            Text(
-                                stringResource(R.string.live_message_hint),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        field()
-                    }
-                },
-            )
+        val hasText = draft.isNotBlank()
+        val enabled = !busy && (hasText || attachmentEnabled)
+        FilledIconButton(onClick = { if (hasText) onSend() else { focus.clearFocus(); onAttach(AttachmentKind.VOICE) } },
+            enabled = enabled, modifier = Modifier.size(48.dp).testTag(if (hasText) "live-send" else "live-voice"),
+            shape = androidx.compose.foundation.shape.CircleShape) {
+            BotGlyph(if (hasText) Glyph.SEND else Glyph.MIC,
+                stringResource(if (hasText) R.string.send else R.string.outgoing_record_voice),
+                modifier = Modifier.size(23.dp), tint = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        FilledIconButton(
-            onClick = onSend,
-            enabled = draft.isNotBlank() && !busy,
-            modifier = Modifier.size(46.dp).testTag("live-send"),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            BotGlyph(Glyph.SEND, stringResource(R.string.send), modifier = Modifier.size(20.dp))
+    }
+    if (options) {
+        ModalBottomSheet(onDismissRequest = { options = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp).testTag("attachment-sheet"),
+                verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(stringResource(R.string.attachment_sheet_title), style = MaterialTheme.typography.titleLarge)
+                val choices = listOf(
+                    Triple(AttachmentKind.PHOTO, R.string.outgoing_choose_photo, Glyph.PHOTO),
+                    Triple(AttachmentKind.VIDEO, R.string.outgoing_choose_video, Glyph.VIDEO),
+                    Triple(AttachmentKind.DOCUMENT, R.string.outgoing_choose_file, Glyph.FILE),
+                    Triple(AttachmentKind.AUDIO, R.string.outgoing_choose_audio, Glyph.AUDIO),
+                    Triple(AttachmentKind.VOICE, R.string.outgoing_record_voice, Glyph.MIC))
+                choices.chunked(3).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        row.forEach { (kind, label, glyph) ->
+                            Surface(onClick = { options = false; onAttach(kind) },
+                                modifier = Modifier.weight(1f).testTag("outgoing-option-${kind.name.lowercase()}"),
+                                shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                                Column(Modifier.heightIn(min = 96.dp).padding(horizontal = 6.dp, vertical = 16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    BotGlyph(glyph, modifier = Modifier.size(27.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Text(stringResource(label), style = MaterialTheme.typography.labelLarge,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                }
+                            }
+                        }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
         }
     }
 }

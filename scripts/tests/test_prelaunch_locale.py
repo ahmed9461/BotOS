@@ -14,4 +14,6 @@ class PrelaunchLocaleTest(unittest.TestCase):
         self.assertIn('activity.resources.configuration.locales[0].language == "ar"', setup)
         self.assertIn('repeat(6)', setup)
         self.assertIn('ui.activityRule.scenario.recreate()', setup)
-        self.assertIn('gapDp >= -2f && gapDp <= 12f', setup)
+        ime = (ROOT / 'app/src/androidTest/kotlin/com/ahmed9461/botos/MessengerImeTest.kt').read_text()
+        self.assertIn('gapDp >= -2f && gapDp <= 12f', ime)
+        self.assertIn('@JvmStatic @BeforeClass fun language() = setMessengerTestArabic()', ime)

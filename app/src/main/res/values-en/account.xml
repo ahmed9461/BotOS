@@ -2,7 +2,7 @@
     <string name="account_title">Telegram account</string>
     <string name="account_subtitle">Connect your account. Keep your space.</string>
     <string name="account_entry_hint">Connect and manage your sign-in</string>
-    <string name="account_unavailable">Connection is not configured in this build. You can still explore the preview and organize your library without signing in.</string>
+    <string name="account_unavailable">Connection is not configured in this build. You can organize your saved bots without signing in.</string>
     <string name="account_welcome">Your bots, closer.</string>
     <string name="account_disclosure">BotOS is an independent app that uses Telegram. With your consent it connects directly to your account to show messages from the bots you choose. Your session stays on this device so you can return later.</string>
     <string name="account_consent">I agree to connect my account and keep my session on this device.</string>

@@ -39,12 +39,12 @@ internal fun BotEditor(bot: SavedBot?, busy: Boolean, onBack: () -> Unit, onSave
     val valid = BotNames.normalize(username) != null && BotNames.validTitle(title)
     val focus = LocalFocusManager.current
     fun save() { if (valid && !busy) { focus.clearFocus(); onSave(username, title) } }
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).testTag("editor-screen")) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).testTag("editor-screen")) {
         Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.testTag("editor-back")) { BotGlyph(Glyph.BACK, stringResource(R.string.back)) }
             Text(stringResource(if (bot == null) R.string.add_bot else R.string.edit_bot), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(stringResource(R.string.editor_intro), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (title.isNotBlank()) Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 BotBadge(title)
@@ -72,7 +72,7 @@ internal fun BotEditor(bot: SavedBot?, busy: Boolean, onBack: () -> Unit, onSave
 internal fun AppearanceScreen(preferences: Preferences, disabled: Boolean, onTheme: (ThemeMode) -> Unit, onMotion: (Boolean) -> Unit, onAccount: () -> Unit) {
     var aboutOpen by rememberSaveable { mutableStateOf(false) }
     val largeText = LocalDensity.current.fontScale > 1.35f
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).testTag("appearance-screen")) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).testTag("appearance-screen")) {
         ScreenHeader(stringResource(R.string.appearance), stringResource(R.string.appearance_intro))
         Text(stringResource(R.string.theme_section), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
@@ -88,11 +88,10 @@ internal fun AppearanceScreen(preferences: Preferences, disabled: Boolean, onThe
         Spacer(Modifier.height(26.dp))
         Text(stringResource(R.string.motion_section), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
-        Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
+        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface) {
             Row(Modifier.fillMaxWidth().testTag("motion-toggle")
                 .toggleable(value = preferences.reduceMotion, enabled = !disabled, role = Role.Switch, onValueChange = onMotion)
-                .padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                .padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(stringResource(R.string.reduce_motion), style = MaterialTheme.typography.titleMedium)
                     Text(stringResource(if (preferences.reduceMotion) R.string.motion_reduced else R.string.motion_full),
@@ -103,9 +102,9 @@ internal fun AppearanceScreen(preferences: Preferences, disabled: Boolean, onThe
             }
         }
         Spacer(Modifier.height(24.dp))
-        Surface(onClick = onAccount, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface,
+        Surface(onClick = onAccount, shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface,
             modifier = Modifier.testTag("open-account")) {
-            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically,
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 BotGlyph(Glyph.LINK, tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -116,8 +115,8 @@ internal fun AppearanceScreen(preferences: Preferences, disabled: Boolean, onThe
             }
         }
         Spacer(Modifier.height(12.dp))
-        Surface(onClick = { aboutOpen = true }, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
-            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(onClick = { aboutOpen = true }, shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 BotGlyph(Glyph.SPACE, tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(stringResource(R.string.about), style = MaterialTheme.typography.titleSmall)
@@ -136,7 +135,7 @@ internal fun AppearanceScreen(preferences: Preferences, disabled: Boolean, onThe
 @Composable
 private fun ThemeTile(mode: ThemeMode, selected: Boolean, disabled: Boolean, onClick: () -> Unit, modifier: Modifier, horizontal: Boolean = false) {
     val label = stringResource(when (mode) { ThemeMode.SYSTEM -> R.string.system_theme; ThemeMode.LIGHT -> R.string.light_theme; ThemeMode.DARK -> R.string.dark_theme })
-    Surface(modifier = modifier, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface,
+    Surface(modifier = modifier, shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)) {
         if (horizontal) {
             Row(Modifier.testTag("theme-${mode.name}").selectable(selected, enabled = !disabled, role = Role.RadioButton, onClick = onClick)
@@ -160,17 +159,17 @@ private fun ThemeTile(mode: ThemeMode, selected: Boolean, disabled: Boolean, onC
 
 @Composable
 private fun ThemeMiniature(mode: ThemeMode, modifier: Modifier) {
-    val pale = Color(0xFFF4F2F8)
-    val dark = Color(0xFF24262D)
+    val pale = Color(0xFFF4F5F9)
+    val dark = Color(0xFF101115)
     Box(modifier.clip(RoundedCornerShape(12.dp))) {
         Row(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxHeight().background(if (mode == ThemeMode.DARK) dark else pale))
             Box(Modifier.weight(1f).fillMaxHeight().background(if (mode == ThemeMode.LIGHT) pale else dark))
         }
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(Modifier.size(16.dp).clip(RoundedCornerShape(5.dp)).background(Color(0xFFB7A8DC)))
-            Box(Modifier.fillMaxWidth(.9f).height(9.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFD4CBDD)))
-            Box(Modifier.fillMaxWidth(.6f).height(9.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFB7A8DC)))
+            Box(Modifier.size(16.dp).clip(RoundedCornerShape(5.dp)).background(Color(0xFFBDB2FF)))
+            Box(Modifier.fillMaxWidth(.9f).height(9.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFE1DCF7)))
+            Box(Modifier.fillMaxWidth(.6f).height(9.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFBDB2FF)))
         }
     }
 }

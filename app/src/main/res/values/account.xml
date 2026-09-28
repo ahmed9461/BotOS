@@ -2,7 +2,7 @@
     <string name="account_title">حساب Telegram</string>
     <string name="account_subtitle">اتصل بحسابك، واحتفظ بمساحتك.</string>
     <string name="account_entry_hint">الاتصال بحسابك وإدارة تسجيل الدخول</string>
-    <string name="account_unavailable">الاتصال غير مهيأ في هذه النسخة. يمكنك استخدام المعاينة وتنظيم مكتبتك دون تسجيل الدخول.</string>
+    <string name="account_unavailable">الاتصال غير مهيأ في هذه النسخة. يمكنك تنظيم البوتات المحفوظة دون تسجيل الدخول.</string>
     <string name="account_welcome">بوتاتك أقرب.</string>
     <string name="account_disclosure">BotOS تطبيق مستقل يستخدم Telegram. بعد موافقتك يتصل مباشرة بحسابك ليعرض رسائل البوتات التي تختارها. تبقى جلسة الدخول على هذا الجهاز لتستأنف استخدامك لاحقًا.</string>
     <string name="account_consent">أوافق على ربط حسابي وحفظ جلسة الدخول على هذا الجهاز.</string>

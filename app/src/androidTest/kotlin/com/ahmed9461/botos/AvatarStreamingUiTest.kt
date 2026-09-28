@@ -59,7 +59,7 @@ class AvatarStreamingUiTest {
     }
     private fun screenshot(name: String) {
         ui.waitForIdle()
-        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot() ?: error("Missing screenshot")
+        val bitmap = captureCommittedScreen()
         try { PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
             check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
         } } finally { bitmap.recycle() }
@@ -70,8 +70,8 @@ class AvatarStreamingUiTest {
         draw {
             CompositionLocalProvider(LocalAvatarSnapshot provides AvatarSnapshot(mapOf(LocalAvatarStore.key(bot) to picture))) {
                 if (library) LibraryScreen(StoreSnapshot(Workspace(listOf(bot))), {}, {})
-                else WorkspaceScreen(StoreSnapshot(Workspace(listOf(bot))), bot.id, MessageTimeline(chat), "", false,
-                    {}, {}, {}, {}, { _, _ -> }, {}, {}, {}, {}, liveContent = {})
+                else WorkspaceScreen(StoreSnapshot(Workspace(listOf(bot))), bot.id, false,
+                    {}, {}, {}, {}, { _, _ -> }, {}, liveContent = {})
             }
         }
         ui.onNodeWithTag("avatar-image-fixture", useUnmergedTree = true).assertIsDisplayed()

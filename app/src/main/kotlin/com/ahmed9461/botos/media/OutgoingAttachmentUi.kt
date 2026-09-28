@@ -7,6 +7,16 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
+import com.ahmed9461.botos.design.BotGlyph
+import com.ahmed9461.botos.design.Glyph
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -101,39 +111,52 @@ internal fun VoiceForegroundGuard(onCancel: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun OutgoingVoiceDialog(state: VoiceUiState, onStop: () -> Unit, onCancel: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onCancel,
-        title = { Text(stringResource(R.string.outgoing_record_voice)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.outgoing_to, state.target.username),
-                    style = MaterialTheme.typography.titleSmall)
-                Text(stringResource(when (state.phase) {
-                    VoicePhase.STARTING -> R.string.outgoing_record_starting
-                    VoicePhase.FINISHING -> R.string.outgoing_record_finishing
-                    else -> R.string.outgoing_recording
-                }), style = MaterialTheme.typography.bodyMedium)
-                Text("%02d:%02d".format(state.seconds / 60, state.seconds % 60),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.testTag("outgoing-voice-timer"))
-                if (state.phase == VoicePhase.STARTING || state.phase == VoicePhase.FINISHING) {
-                    LinearProgressIndicator(Modifier.fillMaxWidth())
+    ModalBottomSheet(onDismissRequest = onCancel, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp).testTag("outgoing-voice"),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(stringResource(R.string.outgoing_record_voice), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.outgoing_to, state.target.username),
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.errorContainer) {
+                Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
+                    BotGlyph(Glyph.MIC, modifier = Modifier.size(30.dp), tint = MaterialTheme.colorScheme.onErrorContainer)
                 }
             }
-        },
-        confirmButton = { TextButton(onClick = onStop, enabled = state.phase == VoicePhase.RECORDING,
-            modifier = Modifier.testTag("outgoing-voice-stop")) { Text(stringResource(R.string.outgoing_record_stop)) } },
-        dismissButton = { TextButton(onClick = onCancel,
-            modifier = Modifier.testTag("outgoing-voice-cancel")) { Text(stringResource(R.string.cancel)) } },
-        modifier = Modifier.testTag("outgoing-voice"),
-    )
+            Text("%02d:%02d".format(java.util.Locale.ROOT, state.seconds / 60, state.seconds % 60),
+                style = MaterialTheme.typography.displaySmall.copy(textDirection = TextDirection.Ltr),
+                modifier = Modifier.testTag("outgoing-voice-timer"))
+            Text(stringResource(when (state.phase) {
+                VoicePhase.STARTING -> R.string.outgoing_record_starting
+                VoicePhase.FINISHING -> R.string.outgoing_record_finishing
+                else -> R.string.voice_recording_hint
+            }), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            if (state.phase == VoicePhase.STARTING || state.phase == VoicePhase.FINISHING) LinearProgressIndicator(Modifier.fillMaxWidth())
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f).heightIn(min = 52.dp).testTag("outgoing-voice-cancel")) {
+                    BotGlyph(Glyph.TRASH, modifier = Modifier.size(19.dp)); Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.cancel))
+                }
+                Button(onClick = onStop, enabled = state.phase == VoicePhase.RECORDING,
+                    modifier = Modifier.weight(1f).heightIn(min = 52.dp).testTag("outgoing-voice-stop")) {
+                    BotGlyph(Glyph.STOP, modifier = Modifier.size(18.dp), tint = if (state.phase == VoicePhase.RECORDING)
+                        MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.voice_finish))
+                }
+            }
+        }
+    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun OutgoingPreviewDialog(preview: OutgoingPreview, caption: String, busy: Boolean,
     onCaption: (String) -> Unit, onSend: () -> Unit, onCancel: () -> Unit) {
+    val currentBusy by rememberUpdatedState(busy)
     val kind = when (preview.attachment.kind) {
         AttachmentKind.PHOTO -> R.string.rich_media_photo
         AttachmentKind.VIDEO -> R.string.rich_media_video
@@ -141,35 +164,49 @@ internal fun OutgoingPreviewDialog(preview: OutgoingPreview, caption: String, bu
         AttachmentKind.VOICE -> R.string.rich_media_voice
         AttachmentKind.DOCUMENT -> R.string.rich_media_document
     }
-    AlertDialog(
-        onDismissRequest = { if (!busy) onCancel() },
-        title = { Text(stringResource(R.string.outgoing_preview)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.outgoing_to, preview.target.username),
-                    style = MaterialTheme.typography.titleSmall)
-                Text(stringResource(kind) + " · " + stringResource(R.string.outgoing_size_kb,
-                    (preview.staged.bytes + 1023) / 1024), style = MaterialTheme.typography.bodySmall)
-                preview.image?.let { bitmap -> Image(bitmap.asImageBitmap(), stringResource(kind),
-                    Modifier.fillMaxWidth().heightIn(max = 150.dp).testTag("outgoing-image"),
-                    contentScale = ContentScale.Fit) }
-                if (preview.attachment.kind == AttachmentKind.AUDIO ||
-                    preview.attachment.kind == AttachmentKind.VOICE) AudioAttachmentPreview(preview.staged.path)
+    ModalBottomSheet(onDismissRequest = { if (!busy) onCancel() },
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true,
+            confirmValueChange = { !currentBusy || it != SheetValue.Hidden }), containerColor = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().heightIn(max = 620.dp).padding(horizontal = 20.dp).padding(bottom = 16.dp).testTag("outgoing-preview"),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(stringResource(R.string.attachment_sheet_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.outgoing_to, preview.target.username), style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                preview.image?.let { bitmap ->
+                    BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        val fitted = fitMedia(bitmap.width, bitmap.height, maxWidth.value, 230f)
+                        Image(bitmap.asImageBitmap(), stringResource(kind), Modifier.size(fitted.width.dp, fitted.height.dp)
+                            .testTag("outgoing-image"), contentScale = ContentScale.Fit)
+                    }
+                }
+                if (preview.attachment.kind == AttachmentKind.AUDIO || preview.attachment.kind == AttachmentKind.VOICE) {
+                    AudioAttachmentPreview(preview.staged.path)
+                }
+                val name = preview.attachment.fileName.takeIf { it.isNotBlank() }
+                if (name != null) Text(name, style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Content),
+                    maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(stringResource(kind) + " · " + stringResource(R.string.outgoing_size_kb, (preview.staged.bytes + 1023) / 1024),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (preview.fileFallback) Text(stringResource(R.string.outgoing_as_file),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(value = caption, onValueChange = onCaption, enabled = !busy,
-                    modifier = Modifier.fillMaxWidth().testTag("outgoing-caption"),
+                    modifier = Modifier.fillMaxWidth().testTag("outgoing-caption"), shape = RoundedCornerShape(16.dp),
                     label = { Text(stringResource(R.string.outgoing_caption)) }, maxLines = 3,
                     textStyle = LocalTextStyle.current.copy(textDirection = TextDirection.Content))
-                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             }
-        },
-        confirmButton = { TextButton(onClick = onSend, enabled = !busy,
-            modifier = Modifier.testTag("outgoing-confirm")) { Text(stringResource(R.string.send)) } },
-        dismissButton = { TextButton(onClick = onCancel, enabled = !busy,
-            modifier = Modifier.testTag("outgoing-cancel")) { Text(stringResource(R.string.cancel)) } },
-        modifier = Modifier.testTag("outgoing-preview"),
-    )
+            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = onCancel, enabled = !busy, modifier = Modifier.weight(1f).heightIn(min = 52.dp).testTag("outgoing-cancel")) {
+                    Text(stringResource(R.string.cancel))
+                }
+                Button(onClick = onSend, enabled = !busy, modifier = Modifier.weight(1f).heightIn(min = 52.dp).testTag("outgoing-confirm")) {
+                    BotGlyph(Glyph.SEND, modifier = Modifier.size(20.dp), tint = if (busy) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary)
+                    Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.send))
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -178,24 +215,40 @@ private fun AudioAttachmentPreview(path: String) {
     val lifecycle = LocalLifecycleOwner.current
     var playback by remember(path) { mutableStateOf<LocalMediaPlayback?>(null) }
     var playing by remember(path) { mutableStateOf(false) }
-    DisposableEffect(path, lifecycle) {
+    var failed by remember(path) { mutableStateOf(false) }
+    val active = playback
+    DisposableEffect(active, lifecycle) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
+            override fun onPlayerError(error: PlaybackException) { failed = true; playing = false }
+        }
+        active?.player?.addListener(listener)
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) {
-            playback?.close(); playback = null; playing = false
+            active?.close(); playback = null; playing = false
         } }
         lifecycle.lifecycle.addObserver(observer)
         onDispose {
             lifecycle.lifecycle.removeObserver(observer)
-            playback?.close(); playback = null; playing = false
+            if (active != null && !active.released) active.player.removeListener(listener)
+            active?.close()
         }
     }
-    TextButton(onClick = {
-        try {
-            val player = playback ?: LocalMediaPlayback(context,
-                DecodedMedia.Playback(File(path), "audio/mp4")).also { playback = it }
-            if (player.player.isPlaying) { player.player.pause(); playing = false }
-            else { player.play(); playing = true }
-        } catch (_: Exception) { playback?.close(); playback = null; playing = false }
-    }, modifier = Modifier.testTag("outgoing-listen")) {
-        Text(stringResource(if (playing) R.string.outgoing_pause else R.string.outgoing_listen))
+    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Column(Modifier.fillMaxWidth().padding(10.dp)) {
+            TextButton(onClick = {
+                try {
+                    if (failed) { playback?.close(); playback = null; failed = false }
+                    val player = playback ?: LocalMediaPlayback(context,
+                        DecodedMedia.Playback(File(path), "audio/mp4")).also { playback = it }
+                    if (player.player.isPlaying) player.player.pause() else player.play()
+                } catch (_: Exception) { playback?.close(); playback = null; playing = false; failed = true }
+            }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("outgoing-listen")) {
+                BotGlyph(if (playing) Glyph.PAUSE else Glyph.PLAY, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(10.dp))
+                Text(stringResource(if (playing) R.string.outgoing_pause else R.string.outgoing_listen))
+            }
+            if (failed) Text(stringResource(R.string.media_playback_error), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error)
+        }
     }
 }

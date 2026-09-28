@@ -11,16 +11,26 @@ class MediaSessionsTest {
     private class Fake : TdRpc {
         val calls = CopyOnWriteArrayList<JsonObject>()
         val listeners = CopyOnWriteArrayList<(JsonObject) -> Unit>()
+        @Volatile var lookupFailures = 0
+        @Volatile var lookupFailureCode = 500
+        @Volatile var downloadFailures = 0
+        @Volatile var photoVisible = true
         var isBot = true
         var completeImmediately = true
         override suspend fun request(command: JsonObject, timeoutMillis: Long): JsonObject {
             calls += command
+            if (command.type() == "searchPublicChat" && lookupFailures > 0) {
+                lookupFailures--; throw TdFailure(FailureKind.REMOTE, lookupFailureCode)
+            }
+            if (command.type() == "downloadFile" && downloadFailures > 0) {
+                downloadFailures--; throw TdFailure(FailureKind.REMOTE, 500)
+            }
             return when (command.type()) {
                 "getMe" -> TdJson.command("user") { put("id", 42) }
                 "searchPublicChat" -> TdJson.command("chat") { put("id", 100); put("type", TdJson.command("chatTypePrivate") { put("user_id", 9) }) }
                 "getUser" -> TdJson.command("user") {
                     put("id", 9); put("type", TdJson.command(if (isBot) "userTypeBot" else "userTypeRegular"))
-                    put("profile_photo", TdJson.command("profilePhoto") { put("small", file(7, false)) })
+                    if (photoVisible) put("profile_photo", TdJson.command("profilePhoto") { put("small", file(7, false)) })
                 }
                 "getFile" -> file(command.number("file_id")!!.toInt(), false)
                 "downloadFile" -> file(command.number("file_id")!!.toInt(), completeImmediately)
@@ -119,4 +129,61 @@ class MediaSessionsTest {
         }
     }
 
+    @Test fun transientProfileFailureRetriesWithoutStartingTheBot() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.rpc.lookupFailures = 1
+            f.profiles.observe(listOf("fixture_bot")); f.connect()
+            val key = withTimeout(5_000) { f.profiles.photos.first { it.isNotEmpty() } }.getValue("fixture_bot")
+            withTimeout(5_000) { f.files.state.first { it[key]?.stage == TransferStage.READY } }
+            assertEquals(2, f.rpc.calls.count { it.type() == "searchPublicChat" })
+            assertFalse(f.rpc.calls.any { it.type() in setOf("sendMessage", "sendBotStartMessage", "openChat") })
+        }
+    }
+    @Test fun profileRateLimitIsNotAutomaticallyRetried() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.rpc.lookupFailures = 10; f.rpc.lookupFailureCode = 429
+            f.profiles.observe(listOf("fixture_bot")); f.connect()
+            withTimeout(5_000) { while (f.rpc.calls.none { it.type() == "searchPublicChat" }) delay(1) }
+            delay(700)
+            assertEquals(1, f.rpc.calls.count { it.type() == "searchPublicChat" })
+            assertTrue(f.profiles.photos.value.isEmpty())
+        }
+    }
+    @Test fun explicitAvatarRefreshIsLimitedToSavedNamesAndCoalescesRapidTaps() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.rpc.photoVisible = false
+            f.profiles.observe(listOf("fixture_bot")); f.connect()
+            withTimeout(5_000) { while (f.rpc.calls.none { it.type() == "getUser" }) delay(1) }
+            delay(50)
+            assertTrue(f.profiles.photos.value.isEmpty())
+            f.rpc.photoVisible = true
+            f.profiles.refresh("not_saved_bot")
+            repeat(30) { f.profiles.refresh("fixture_bot") }
+            withTimeout(5_000) { f.profiles.photos.first { it.isNotEmpty() } }
+            delay(50)
+            assertEquals(2, f.rpc.calls.count { it.type() == "searchPublicChat" })
+            assertFalse(f.rpc.calls.any { it.string("username") == "not_saved_bot" })
+        }
+    }
+    @Test fun logoutCancelsPendingAvatarRetryAndClearsPhotos() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.rpc.lookupFailures = 10
+            f.profiles.observe(listOf("fixture_bot")); f.connect()
+            withTimeout(5_000) { while (f.rpc.calls.none { it.type() == "searchPublicChat" }) delay(1) }
+            f.account.logOut()
+            withTimeout(5_000) { f.account.ready.first { it == null } }
+            delay(700)
+            assertEquals(1, f.rpc.calls.count { it.type() == "searchPublicChat" })
+            assertTrue(f.profiles.photos.value.isEmpty())
+        }
+    }
+    @Test fun failedAvatarTransferRetriesWithinABoundedBudget() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.rpc.downloadFailures = 1
+            f.profiles.observe(listOf("fixture_bot")); f.connect()
+            val key = withTimeout(5_000) { f.profiles.photos.first { it.isNotEmpty() } }.getValue("fixture_bot")
+            withTimeout(6_000) { f.files.state.first { it[key]?.stage == TransferStage.READY } }
+            assertEquals(2, f.rpc.calls.count { it.type() == "downloadFile" })
+        }
+    }
 }

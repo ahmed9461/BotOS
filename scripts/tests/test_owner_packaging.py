@@ -26,7 +26,7 @@ class OwnerPackagingTest(unittest.TestCase):
         self.folder = self.outputs / 'apk/ownerPreview'; self.folder.mkdir(parents=True)
         self.metadata = {'applicationId': 'com.ahmed9461.botos.app', 'variantName': 'ownerPreview',
                          'artifactType': {'type': 'APK'}, 'elements': [{'type': 'SINGLE', 'filters': [],
-                         'versionCode': 5, 'versionName': '0.5.0-preview', 'outputFile': 'custom-name.apk'}]}
+                         'versionCode': 6, 'versionName': '0.6.0-preview', 'outputFile': 'custom-name.apk'}]}
         self.save_metadata()
         self.apk = self.folder/'custom-name.apk'
         with zipfile.ZipFile(self.apk, 'w') as archive:
@@ -41,7 +41,7 @@ class OwnerPackagingTest(unittest.TestCase):
         self.update_report.parent.mkdir(parents=True)
         self.update_report.write_text(json.dumps({
             'application_id': 'com.ahmed9461.botos.app', 'in_place_upgrade': 'passed',
-            'from_version': '0.4.0-preview', 'to_version': '0.5.0-preview',
+            'from_version': '0.5.0-preview', 'to_version': '0.6.0-preview',
             'private_file_preserved': True, 'preferences_preserved': True,
             'uninstalled_between_installs': False, 'same_version_reinstall': False,
             'signer': 'temporary CI', 'owner_final_signer_device_test': False, 'account_used': False,
@@ -79,7 +79,7 @@ class OwnerPackagingTest(unittest.TestCase):
         for key,value in [('applicationId','other.app'),('variantName','debug'),('artifactType',{'type':'BUNDLE'})]:
             self.save_metadata(self.metadata | {key:value})
             with self.subTest(key=key), self.assertRaises(ValueError): module.locate_owner_apk(self.outputs)
-        for key,value in [('versionCode',4),('versionName','0.4.0-preview')]:
+        for key,value in [('versionCode',5),('versionName','0.5.0-preview')]:
             data=copy.deepcopy(self.metadata);data['elements'][0][key]=value;self.save_metadata(data)
             with self.subTest(key=key), self.assertRaises(ValueError): module.locate_owner_apk(self.outputs)
     def test_path_traversal_absolute_backslash_and_missing_apk_are_rejected(self):
@@ -98,9 +98,9 @@ class OwnerPackagingTest(unittest.TestCase):
         run=self.package()
         self.assertEqual(['apksigner','zipalign'],[Path(c.args[0][0]).name for c in run.call_args_list])
         with zipfile.ZipFile(self.destination) as archive:
-            self.assertEqual({'BotOS-0.5.0-preview-ci.apk','tools/apksigner.jar','owner-startup.txt','owner-startup.xml','owner-update.json','provenance.json'},set(archive.namelist()))
+            self.assertEqual({'BotOS-0.6.0-preview-ci.apk','tools/apksigner.jar','owner-startup.txt','owner-startup.xml','owner-update.json','provenance.json'},set(archive.namelist()))
             manifest=json.loads(archive.read('provenance.json'));self.assertFalse(manifest['account_used']);self.assertFalse(manifest['debuggable'])
-            self.assertEqual('0.5.0-preview',manifest['version'])
+            self.assertEqual('0.6.0-preview',manifest['version'])
     def test_configuration_conflict_and_extra_report_never_create_payload(self):
         self.evidence.write_text(self.evidence.read_text().replace('configured=true','configured=false'))
         with self.assertRaises(ValueError): self.package()

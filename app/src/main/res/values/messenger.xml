@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_list_title">الدردشات</string>
+    <string name="chat_list_subtitle">بوتاتك، في مكان واحد</string>
+    <string name="chat_empty_hint">أضف بوت تلجرام لفتح محادثته هنا.</string>
+    <string name="selected_bot">البوت المحدد</string>
+    <string name="clear_search">مسح البحث</string>
+    <string name="attachment_sheet_title">إرسال مرفق</string>
+    <string name="chat_commands">أوامر البوت</string>
+    <string name="chat_jump_latest">الانتقال لآخر رسالة</string>
+    <string name="chat_today">اليوم</string>
+    <string name="chat_yesterday">أمس</string>
+    <string name="media_zoom_in">تكبير الصورة</string>
+    <string name="media_zoom_reset">إعادة حجم الصورة</string>
+    <string name="avatar_refresh">تحديث صورة تلجرام</string>
+    <string name="voice_recording_hint">أوقف التسجيل للاستماع إليه قبل الإرسال</string>
+    <string name="voice_discard">إلغاء التسجيل</string>
+    <string name="voice_finish">إيقاف التسجيل</string>
+    <string name="media_playback_error">تعذر تشغيل هذا الصوت.</string>
+</resources>

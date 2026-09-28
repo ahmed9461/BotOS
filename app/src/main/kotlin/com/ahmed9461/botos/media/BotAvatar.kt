@@ -7,7 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,8 +34,7 @@ internal fun BotAvatar(bot: SavedBot, size: Dp = 52.dp, editable: Boolean = true
     val bitmap = LocalAvatarSnapshot.current.images[LocalAvatarStore.key(bot)]
     val configure = LocalConfigureAvatar.current
     val label = stringResource(R.string.avatar_edit, bot.title)
-    val radius = if (size <= 40.dp) 13.dp else 17.dp
-    Surface(shape = RoundedCornerShape(radius), color = MaterialTheme.colorScheme.primaryContainer,
+    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer,
         modifier = Modifier.size(size).testTag("avatar-${bot.id}")) {
         Box(Modifier.fillMaxSize().then(if (editable && configure != null) Modifier.clickable(
             role = Role.Button, onClickLabel = label, onClick = { configure(bot) }) else Modifier),
@@ -67,14 +66,14 @@ internal fun AvatarHost(onNotice: (Int) -> Unit, vm: AvatarViewModel = viewModel
                     catch (_: ActivityNotFoundException) { vm.pickerFailed() }
                     catch (_: SecurityException) { vm.pickerFailed() }
                 }
-            }, vm::reset)
+            }, vm::reset, vm::refresh)
         }
     }
 }
 
 @Composable
 internal fun AvatarOptions(bot: SavedBot, hasCustom: Boolean, busy: Boolean, onDismiss: () -> Unit,
-    onChoose: () -> Unit, onReset: () -> Unit) {
+    onChoose: () -> Unit, onReset: () -> Unit, onRefresh: (() -> Unit)? = null) {
     AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.avatar_title)) },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -85,6 +84,10 @@ internal fun AvatarOptions(bot: SavedBot, hasCustom: Boolean, busy: Boolean, onD
                 }
                 if (hasCustom) OutlinedButton(onClick = onReset, enabled = !busy,
                     modifier = Modifier.fillMaxWidth().testTag("avatar-reset")) { Text(stringResource(R.string.avatar_automatic)) }
+                if (onRefresh != null && !hasCustom) TextButton(onClick = onRefresh, enabled = !busy,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("avatar-refresh")) {
+                    Text(stringResource(R.string.avatar_refresh))
+                }
                 if (busy) CircularProgressIndicator(Modifier.size(22.dp))
             }
         }, confirmButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.close)) } })

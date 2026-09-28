@@ -7,7 +7,7 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,6 +38,11 @@ import com.ahmed9461.botos.design.*
 import com.ahmed9461.botos.model.*
 import com.ahmed9461.botos.telegram.runtime.PendingReply
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import com.ahmed9461.botos.media.*
+import java.time.LocalDate
+import java.time.format.FormatStyle
+import androidx.compose.ui.platform.LocalConfiguration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -51,29 +56,42 @@ internal fun MessageTimelineView(timeline: MessageTimeline, onAction: (ActionTic
     pending: PendingReply? = null, onStopPending: (Long) -> Unit = {}, busy: Boolean = false) {
     val listState = rememberLazyListState()
     val duration = LocalMotionMillis.current
-    val followTail by remember { derivedStateOf { !listState.canScrollForward } }
+    val scope = rememberCoroutineScope()
     val currentPending = pending?.takeIf { it.content.chat == timeline.chat }
-    var followPending by remember(timeline.chat) { mutableStateOf(true) }
+    // Reader intent survives a layout pass that makes a newly appended message scrollable.
+    var followTail by remember(timeline.chat) { mutableStateOf(true) }
     var programmaticScroll by remember(timeline.chat) { mutableStateOf(false) }
     LaunchedEffect(timeline.chat, listState) {
-        snapshotFlow { listState.isScrollInProgress to listState.canScrollForward }.collect { (scrolling, hasMore) ->
-            if (!programmaticScroll && scrolling) followPending = !hasMore
-            if (!programmaticScroll && !hasMore) followPending = true
+        var previousIndex = listState.firstVisibleItemIndex
+        var previousOffset = listState.firstVisibleItemScrollOffset
+        snapshotFlow {
+            Triple(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset, listState.canScrollForward)
+        }.collect { (index, offset, hasMore) ->
+            // Also observe instantaneous/accessibility scrolling, not only animated drag frames.
+            val moved = index != previousIndex || offset != previousOffset
+            if (!programmaticScroll && moved) followTail = !hasMore
+            if (!programmaticScroll && !hasMore) followTail = true
+            previousIndex = index
+            previousOffset = offset
         }
     }
     LaunchedEffect(timeline.chat, timeline.messages.lastOrNull()?.id) {
-        if (currentPending == null && timeline.messages.isNotEmpty() && (followTail || timeline.messages.takeLast(2).any { it.outgoing })) {
-            if (duration == 0) listState.scrollToItem(timeline.messages.lastIndex)
-            else listState.animateScrollToItem(timeline.messages.lastIndex)
+        if (currentPending == null && timeline.messages.isNotEmpty() && (followTail || timeline.messages.lastOrNull()?.outgoing == true)) {
+            programmaticScroll = true
+            followTail = true
+            try {
+                if (duration == 0) listState.scrollToItem(timeline.messages.lastIndex)
+                else listState.animateScrollToItem(timeline.messages.lastIndex)
+            } finally { programmaticScroll = false }
         }
     }
     // Follow a growing reply only while the reader remains at the tail. No whole-report animation.
     LaunchedEffect(timeline.chat, currentPending?.draftId, currentPending?.content?.revision) {
-        if (currentPending == null || !followPending || listState.isScrollInProgress) return@LaunchedEffect
+        if (currentPending == null || !followTail || listState.isScrollInProgress) return@LaunchedEffect
         val index = timeline.messages.size
         snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > index }
         withFrameNanos { }
-        if (!followPending) return@LaunchedEffect
+        if (!followTail) return@LaunchedEffect
         programmaticScroll = true
         try {
             if (listState.layoutInfo.visibleItemsInfo.none { it.index == index }) listState.scrollToItem(index)
@@ -84,10 +102,16 @@ internal fun MessageTimelineView(timeline: MessageTimeline, onAction: (ActionTic
             }
         } finally { programmaticScroll = false }
     }
-    LazyColumn(modifier.fillMaxWidth().testTag("message-list"), state = listState,
+    Box(modifier.fillMaxWidth()) {
+    LazyColumn(Modifier.fillMaxSize().testTag("message-list"), state = listState,
         verticalArrangement = Arrangement.spacedBy(7.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-        items(timeline.messages, key = { "${it.chat.account}/${it.chat.chat}/${it.id}" }, contentType = { it.outgoing }) {
-            MessageBubble(it, onAction)
+        itemsIndexed(timeline.messages, key = { _, it -> "${it.chat.account}/${it.chat.chat}/${it.id}" }, contentType = { _, it -> it.outgoing }) { index, message ->
+            Column {
+                val day = messageDay(message.date)
+                val previous = timeline.messages.getOrNull(index - 1)?.let { messageDay(it.date) }
+                if (day != null && day != previous) DaySeparator(day)
+                MessageBubble(message, onAction)
+            }
         }
         currentPending?.let { reply ->
             item(key = "pending/${timeline.chat.account}/${timeline.chat.chat}/${reply.draftId}", contentType = "pending") {
@@ -107,6 +131,45 @@ internal fun MessageTimelineView(timeline: MessageTimeline, onAction: (ActionTic
             }
         }
     }
+        if (listState.canScrollForward) SmallFloatingActionButton(
+            onClick = { scope.launch {
+                val index = if (currentPending != null) timeline.messages.size else timeline.messages.lastIndex
+                if (index >= 0) {
+                    programmaticScroll = true
+                    followTail = true
+                    try {
+                        if (duration == 0) listState.scrollToItem(index) else listState.animateScrollToItem(index)
+                    } finally { programmaticScroll = false }
+                }
+            } }, modifier = Modifier.align(Alignment.BottomEnd).padding(10.dp).size(48.dp).testTag("chat-jump-latest"),
+            containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary,
+            shape = androidx.compose.foundation.shape.CircleShape) {
+            BotGlyph(Glyph.DOWN, stringResource(R.string.chat_jump_latest))
+        }
+    }
+
+}
+
+private fun messageDay(seconds: Long): LocalDate? = if (seconds <= 0L) null else runCatching {
+    Instant.ofEpochSecond(seconds).atZone(ZoneId.systemDefault()).toLocalDate()
+}.getOrNull()
+
+@Composable
+private fun DaySeparator(day: LocalDate) {
+    val locale = LocalConfiguration.current.locales[0]
+    val today = LocalDate.now()
+    val label = when (day) {
+        today -> stringResource(R.string.chat_today)
+        today.minusDays(1) -> stringResource(R.string.chat_yesterday)
+        else -> remember(day, locale) { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).format(day) }
+    }
+    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.testTag("message-day-$day")) {
+            Text(label, Modifier.padding(horizontal = 12.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
 
 @Composable
@@ -114,25 +177,31 @@ private fun MessageBubble(message: BotMessage, onAction: (ActionTicket) -> Unit)
     val content = remember(message.blocks) { message.blocks.filterNot { it is Block.Buttons } }
     val buttons = remember(message.blocks) { message.blocks.filterIsInstance<Block.Buttons>() }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val maximum = maxWidth * if (message.outgoing) .78f else .91f
+        val maximum = minOf(440.dp, maxWidth * if (message.outgoing) .78f else .91f)
+        val photo = (content.singleOrNull() as? Block.Media)?.takeIf { it.info.kind == MediaKind.PHOTO }
+        val bitmap = photo?.let { media -> LocalMediaUi.current?.snapshot?.items?.get(
+            MediaReference(message.chat, message.id, message.revision, media.id))?.content as? DecodedMedia.Picture }?.bitmap
+        val photoWidth = photo?.let { fitMedia(bitmap?.width ?: it.info.width, bitmap?.height ?: it.info.height,
+            (maximum.value - 8f).coerceAtLeast(1f), 360f).width.dp + 8.dp }
         Column(Modifier.fillMaxWidth(), horizontalAlignment = if (message.outgoing) AbsoluteAlignment.Right else AbsoluteAlignment.Left,
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (content.isNotEmpty() || message.delivery != DeliveryState.NONE || message.date > 0L) {
                 Surface(shape = RoundedCornerShape(18.dp),
                     color = if (message.outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
                     contentColor = if (message.outgoing) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                    border = if (message.outgoing) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    border = null,
                     modifier = Modifier.widthIn(max = maximum)
-                        .then(if (buttons.isNotEmpty()) Modifier.width(maximum) else Modifier.wrapContentWidth())
+                        .then(when { photoWidth != null -> Modifier.width(photoWidth); buttons.isNotEmpty() -> Modifier.width(maximum); else -> Modifier.wrapContentWidth() })
                         .testTag("message-bubble-${message.id}")) {
-                    Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.padding(horizontal = if (photo != null) 4.dp else 12.dp, vertical = if (photo != null) 4.dp else 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(if (photo != null) 5.dp else 6.dp)) {
                         CompositionLocalProvider(LocalRichActionIds provides message.inlineActions.filter { it.enabled }.map { it.id }.toSet(),
                             LocalRichActivation provides { id -> onAction(ActionTicket(message.chat, message.id, message.revision, id)) }) {
                             content.take(ContentLimits.MAX_BLOCKS).forEach { block -> key(block.id) { RenderBlock(block, message, onAction, 0) } }
                         }
                         if (!message.isFull) Text(stringResource(R.string.rich_partial), style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        MessageMeta(message)
+                        Box(Modifier.align(Alignment.End).padding(horizontal = if (photo != null) 4.dp else 0.dp)) { MessageMeta(message) }
                     }
                 }
             }

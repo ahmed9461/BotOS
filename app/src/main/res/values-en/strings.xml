@@ -6,9 +6,6 @@
     <string name="subtitle">One calm space for everything you use.</string>
     <string name="add_bot">Add a bot</string>
     <string name="edit_bot">Edit bot</string>
-    <string name="preview">Preview</string>
-    <string name="preview_notice">Preview · Not connected to your account</string>
-    <string name="no_connection">Account connection is not enabled in this version yet. You can organize your bots and explore the interface.</string>
     <string name="waiting_connection">Waiting for account connection</string>
     <string name="open_telegram">Open in Telegram</string>
     <string name="bookmark_notice">Saved to your space only. The bot will be verified when your account is connected.</string>
@@ -33,11 +30,8 @@
     <string name="reduce_motion">Reduce motion</string>
     <string name="reduce_motion_hint">Simpler, quieter transitions</string>
     <string name="about">About BotOS</string>
-    <string name="about_body">BotOS is an independent app for Telegram bots. This version provides previews and local organization; it does not sign in to your account or send messages to it.</string>
     <string name="privacy_hint">Your settings and bot names stay on your device.</string>
-    <string name="composer_hint">Try writing a message…</string>
-    <string name="send">Send in preview</string>
-    <string name="preview_reply">This is a local preview message only. Try the buttons in the first card to change its content.</string>
+    <string name="send">Send</string>
     <string name="unsupported">This content cannot be displayed here yet.</string>
     <string name="content_limited">Part of the content is shown to keep this space responsive.</string>
     <string name="stale_action">This message changed. Please use its current buttons.</string>
@@ -49,7 +43,6 @@
     <string name="open_error">This link could not be opened on your device.</string>
     <string name="empty_bots">Start with one bot. Bring the rest here.</string>
     <string name="loading">Opening your space…</string>
-    <string name="preview_version">Preview version 0.1</string>
     <string name="expand">Expand details</string>
     <string name="collapse">Collapse details</string>
 </resources>

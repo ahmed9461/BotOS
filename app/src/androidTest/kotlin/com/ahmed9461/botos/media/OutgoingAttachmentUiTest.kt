@@ -50,8 +50,7 @@ class OutgoingAttachmentUiTest {
 
     private fun screenshot(name: String) {
         ui.waitForIdle()
-        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-            ?: error("Device screenshot unavailable")
+        val bitmap = com.ahmed9461.botos.captureCommittedScreen()
         try {
             PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
                 check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))

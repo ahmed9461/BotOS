@@ -58,6 +58,7 @@ class UiRegressionTest {
     private data class WindowSnapshot(
         val focused: Boolean, val imeVisible: Boolean,
         val rootHeight: Int, val imeBottom: Int, val density: Float,
+        val statusTop: Int, val navigationBottom: Int,
     )
     private fun windowSnapshot(): WindowSnapshot {
         var snapshot: WindowSnapshot? = null
@@ -71,6 +72,8 @@ class UiRegressionTest {
                 insets?.isVisible(WindowInsetsCompat.Type.ime()) == true,
                 root.height, insets?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0,
                 activity.resources.displayMetrics.density,
+                insets?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0,
+                insets?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0,
             )
         }
         return checkNotNull(snapshot)
@@ -101,16 +104,51 @@ class UiRegressionTest {
         enabled("theme-$name")
         ui.onNodeWithTag("theme-$name").assertIsSelected()
     }
-    private fun screenshot(name: String) {
+    private fun screenshot(name: String, expectedDarkBars: Boolean? = null) {
         Log.i("BotOSUiTest", "screenshot:$name")
         ui.waitForIdle()
-        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-            ?: error("Device screenshot unavailable")
+        val bitmap = captureCommittedScreen()
         try {
             PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
                 check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) { "Screenshot compression failed" }
             }
+            if (expectedDarkBars != null) {
+                val window = windowSnapshot()
+                assertTrue("Visible system bars are required for this appearance test",
+                    window.rootHeight > 0 && window.statusTop > 0 && window.navigationBottom > 0)
+                val scale = bitmap.height.toFloat() / window.rootHeight
+                val rows = listOf((window.statusTop * scale / 2).toInt(),
+                    bitmap.height - 1 - (window.navigationBottom * scale / 2).toInt())
+                rows.forEachIndexed { index, y ->
+                    // Median of spaced background samples ignores the centered gesture handle.
+                    val median = listOf(1, 2, 3).map { part ->
+                        android.graphics.Color.luminance(bitmap.getPixel(bitmap.width * part / 4, y))
+                    }.sorted()[1]
+                    assertTrue("$name system bar $index luminance=$median must match the app theme",
+                        if (expectedDarkBars) median < .4f else median > .6f)
+                }
+            }
         } finally { bitmap.recycle() }
+    }
+
+    private fun chatListReady() {
+        try {
+            // StateFlow collection and the platform IME finish outside Compose's test clock.
+            ui.waitUntil(5_000) {
+                val window = windowSnapshot()
+                !window.imeVisible && window.imeBottom == 0 &&
+                    ui.onAllNodesWithTag("chat-list").fetchSemanticsNodes().isNotEmpty() &&
+                    ui.onAllNodesWithTag("bottom-dock").fetchSemanticsNodes().isNotEmpty()
+            }
+            ui.onNodeWithTag("chat-list").assertIsDisplayed()
+            ui.onNodeWithTag("bottom-dock").assertIsDisplayed()
+        } catch (failure: Throwable) {
+            try {
+                Log.e("BotOSUiTest", "chat_list_return_failed: ${windowSnapshot()}")
+                screenshot("chat-list-return-failure")
+            } catch (captureFailure: Throwable) { failure.addSuppressed(captureFailure) }
+            throw failure
+        }
     }
 
     @Test fun a_preferencesUpdateInPlaceAndSurviveRecreation() {
@@ -126,9 +164,9 @@ class UiRegressionTest {
         }
         assertTrue("An even number of real writes restores the initial value", motion() == before)
         theme("LIGHT")
-        screenshot("appearance-light-ar")
+        screenshot("appearance-light-ar", expectedDarkBars = false)
         theme("DARK")
-        screenshot("appearance-dark-ar")
+        screenshot("appearance-dark-ar", expectedDarkBars = true)
         enabled("motion-toggle")
         val expected = if (motion() == ToggleableState.On) ToggleableState.Off else ToggleableState.On
         ui.onNodeWithTag("motion-toggle").performClick()
@@ -138,39 +176,17 @@ class UiRegressionTest {
         ui.waitForIdle()
         ui.waitUntil(10_000) { motion() == expected }
         ui.onNodeWithTag("theme-DARK").assertIsSelected()
-        screenshot("appearance-restored-ar")
+        screenshot("appearance-restored-ar", expectedDarkBars = true)
     }
 
-    @Test fun b_composerTracksRealImeWithoutAnEmptyDock() {
+    @Test fun b_homeIsTheRealChatListWithoutPreviewOrSyntheticMessages() {
         ui.onNodeWithTag("nav-workspace").performClick()
-        ui.onNodeWithTag("preview-mode").assertIsDisplayed()
-        ui.onNodeWithTag("bot-switcher").assertIsDisplayed()
+        ui.onNodeWithTag("chat-list").assertIsDisplayed()
+        ui.onNodeWithTag("preview-mode").assertDoesNotExist()
+        ui.onNodeWithTag("message-list").assertDoesNotExist()
+        ui.onNodeWithTag("add-bot").assertIsDisplayed()
+        ui.onNodeWithTag("bottom-dock").assertIsDisplayed()
         screenshot("workspace-ar")
-        windowReady()
-        ui.onNodeWithTag("composer-input").assertIsDisplayed().performTouchInput { click() }
-        try {
-            ui.waitUntil(15_000) { windowSnapshot().imeVisible }
-        } catch (failure: ComposeTimeoutException) {
-            try { screenshot("keyboard-not-shown") }
-            catch (captureFailure: Exception) { failure.addSuppressed(captureFailure) }
-            throw failure
-        }
-        ui.onNodeWithTag("composer-input").assertIsFocused().performTextInput("رسالة تجريبية")
-        ui.onNodeWithTag("bottom-dock").assertDoesNotExist()
-        ui.waitForIdle()
-        val window = windowSnapshot()
-        val composer = ui.onNodeWithTag("composer-bar").fetchSemanticsNode().boundsInWindow
-        val gap = window.rootHeight - window.imeBottom - composer.bottom
-        val gapDp = gap / window.density
-        PlatformTestStorageRegistry.getInstance().openOutputFile("keyboard-gap.txt").bufferedWriter().use {
-            it.write("rootHeight=${window.rootHeight}\nimeBottom=${window.imeBottom}\ncomposerBottom=${composer.bottom}\ngapDp=$gapDp\n")
-        }
-        screenshot("keyboard-ar")
-        assertTrue("Composer overlaps IME or leaves an excessive gap: $gapDp dp", gapDp >= -2f && gapDp <= 12f)
-        ui.onNodeWithTag("send-preview").performClick()
-        ui.onNodeWithTag("composer-input").assert(
-            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(""))
-        )
     }
 
     @Test fun c_libraryAndEditorNavigationPreserveInputOnRecreation() {
@@ -199,5 +215,29 @@ class UiRegressionTest {
         screenshot("account-unconfigured-ar")
         ui.onNodeWithTag("account-back").performClick()
         ui.onNodeWithTag("nav-appearance").assertIsSelected()
+    }
+    @Test fun e_savedBotOpensARealConnectionGateAndBackRestoresTheList() {
+        val removeLabel = ui.activity.getString(R.string.remove)
+        ui.onNodeWithTag("nav-workspace").performClick()
+        enabled("add-bot")
+        ui.onNodeWithTag("add-bot").performClick()
+        ui.onNodeWithTag("bot-username").performTextInput("botos_fixture_bot")
+        ui.onNodeWithTag("bot-title").performTextInput("بوت الاختبار")
+        ui.onNodeWithTag("bot-title").performClick()
+        ui.waitUntil(10_000) { windowSnapshot().imeVisible }
+        ui.onNodeWithTag("save-bot").performClick()
+        ui.waitUntil(10_000) { ui.onAllNodesWithTag("live-connect-account").fetchSemanticsNodes().isNotEmpty() }
+        ui.onNodeWithTag("bottom-dock").assertDoesNotExist()
+        ui.onNodeWithTag("live-input").assertDoesNotExist()
+        ui.onNodeWithTag("chat-back").performClick()
+        chatListReady()
+        ui.activityRule.scenario.recreate()
+        ui.waitUntil(10_000) { ui.onAllNodesWithText("@botos_fixture_bot").fetchSemanticsNodes().isNotEmpty() }
+        ui.onNodeWithText("@botos_fixture_bot").performClick()
+        ui.onNodeWithTag("bot-actions").performClick()
+        ui.onAllNodesWithText(removeLabel).filter(hasClickAction()).onFirst().performClick()
+        ui.onAllNodesWithText(removeLabel).filter(hasClickAction()).onFirst().performClick()
+        ui.waitUntil(10_000) { ui.onAllNodesWithText("@botos_fixture_bot").fetchSemanticsNodes().isEmpty() }
+        chatListReady()
     }
 }

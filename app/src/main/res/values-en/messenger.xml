@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_list_title">Chats</string>
+    <string name="chat_list_subtitle">Your bots, in one place</string>
+    <string name="chat_empty_hint">Add a Telegram bot to open its conversation.</string>
+    <string name="selected_bot">Selected bot</string>
+    <string name="clear_search">Clear search</string>
+    <string name="attachment_sheet_title">Send an attachment</string>
+    <string name="chat_commands">Bot commands</string>
+    <string name="chat_jump_latest">Go to latest message</string>
+    <string name="chat_today">Today</string>
+    <string name="chat_yesterday">Yesterday</string>
+    <string name="media_zoom_in">Zoom in</string>
+    <string name="media_zoom_reset">Reset zoom</string>
+    <string name="avatar_refresh">Refresh Telegram photo</string>
+    <string name="voice_recording_hint">Stop to review before sending</string>
+    <string name="voice_discard">Discard recording</string>
+    <string name="voice_finish">Stop recording</string>
+    <string name="media_playback_error">This audio could not be played.</string>
+</resources>

@@ -51,8 +51,8 @@ class RichChatRegressionTest {
             BotOsTheme(theme, true) {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                        WorkspaceScreen(StoreSnapshot(Workspace(listOf(bot))), "fixture", fixture(), "", false,
-                            {}, {}, {}, {}, { _, _ -> }, {}, {}, {}, {}, liveContent = {
+                        WorkspaceScreen(StoreSnapshot(Workspace(listOf(bot))), "fixture", false,
+                            {}, {}, {}, {}, { _, _ -> }, {}, liveContent = {
                                 LiveBotPanel(ConversationState("fixture_bot", ConversationStatus.READY, fixture()),
                                     "", {}, {}, {}, {}, {}, {}, {}, {}, {})
                             })
@@ -64,8 +64,7 @@ class RichChatRegressionTest {
     }
     private fun capture(name: String) {
         ui.waitForIdle()
-        val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-            ?: error("Device screenshot unavailable")
+        val bitmap = captureCommittedScreen()
         try { PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
             check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
         } } finally { bitmap.recycle() }
