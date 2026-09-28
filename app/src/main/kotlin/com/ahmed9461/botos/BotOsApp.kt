@@ -25,6 +25,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
@@ -123,11 +124,14 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel(), accountVm: AccountViewModel =
 internal fun AppFrame(snackbar: SnackbarHostState, bottomBar: @Composable () -> Unit,
     content: @Composable (PaddingValues) -> Unit) {
     val activity = LocalActivity.current as? ComponentActivity
-    val light = MaterialTheme.colorScheme.background.luminance() > 0.5f
-    DisposableEffect(activity, light) {
+    val background = MaterialTheme.colorScheme.background
+    val light = background.luminance() > 0.5f
+    DisposableEffect(activity, background) {
         // The chosen app theme, not the device theme, owns both bar icons and window setup.
         val bars = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { !light }
         activity?.enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+        // Transparent system bars can reveal the XML window background after recreation.
+        activity?.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(background.toArgb()))
         onDispose { }
     }
     val safeInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.ime)

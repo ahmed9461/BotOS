@@ -58,6 +58,7 @@ class UiRegressionTest {
     private data class WindowSnapshot(
         val focused: Boolean, val imeVisible: Boolean,
         val rootHeight: Int, val imeBottom: Int, val density: Float,
+        val statusTop: Int, val navigationBottom: Int,
     )
     private fun windowSnapshot(): WindowSnapshot {
         var snapshot: WindowSnapshot? = null
@@ -71,6 +72,8 @@ class UiRegressionTest {
                 insets?.isVisible(WindowInsetsCompat.Type.ime()) == true,
                 root.height, insets?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0,
                 activity.resources.displayMetrics.density,
+                insets?.getInsets(WindowInsetsCompat.Type.statusBars())?.top ?: 0,
+                insets?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0,
             )
         }
         return checkNotNull(snapshot)
@@ -101,13 +104,29 @@ class UiRegressionTest {
         enabled("theme-$name")
         ui.onNodeWithTag("theme-$name").assertIsSelected()
     }
-    private fun screenshot(name: String) {
+    private fun screenshot(name: String, expectedDarkBars: Boolean? = null) {
         Log.i("BotOSUiTest", "screenshot:$name")
         ui.waitForIdle()
         val bitmap = captureCommittedScreen()
         try {
             PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
                 check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) { "Screenshot compression failed" }
+            }
+            if (expectedDarkBars != null) {
+                val window = windowSnapshot()
+                assertTrue("Visible system bars are required for this appearance test",
+                    window.rootHeight > 0 && window.statusTop > 0 && window.navigationBottom > 0)
+                val scale = bitmap.height.toFloat() / window.rootHeight
+                val rows = listOf((window.statusTop * scale / 2).toInt(),
+                    bitmap.height - 1 - (window.navigationBottom * scale / 2).toInt())
+                rows.forEachIndexed { index, y ->
+                    // Median of spaced background samples ignores the centered gesture handle.
+                    val median = listOf(1, 2, 3).map { part ->
+                        android.graphics.Color.luminance(bitmap.getPixel(bitmap.width * part / 4, y))
+                    }.sorted()[1]
+                    assertTrue("$name system bar $index luminance=$median must match the app theme",
+                        if (expectedDarkBars) median < .4f else median > .6f)
+                }
             }
         } finally { bitmap.recycle() }
     }
@@ -145,9 +164,9 @@ class UiRegressionTest {
         }
         assertTrue("An even number of real writes restores the initial value", motion() == before)
         theme("LIGHT")
-        screenshot("appearance-light-ar")
+        screenshot("appearance-light-ar", expectedDarkBars = false)
         theme("DARK")
-        screenshot("appearance-dark-ar")
+        screenshot("appearance-dark-ar", expectedDarkBars = true)
         enabled("motion-toggle")
         val expected = if (motion() == ToggleableState.On) ToggleableState.Off else ToggleableState.On
         ui.onNodeWithTag("motion-toggle").performClick()
@@ -157,7 +176,7 @@ class UiRegressionTest {
         ui.waitForIdle()
         ui.waitUntil(10_000) { motion() == expected }
         ui.onNodeWithTag("theme-DARK").assertIsSelected()
-        screenshot("appearance-restored-ar")
+        screenshot("appearance-restored-ar", expectedDarkBars = true)
     }
 
     @Test fun b_homeIsTheRealChatListWithoutPreviewOrSyntheticMessages() {
