@@ -1,0 +1,37 @@
+{
+  "source_commit": "28f6765777ff7f7f212200f0d8bdee64e0b261e2",
+  "integration_run": "36414703015",
+  "delivery_run": "36416378097",
+  "version": "0.6.0-preview",
+  "version_code": 6,
+  "application_id": "com.ahmed9461.botos.app",
+  "min_sdk": 26,
+  "target_sdk": 37,
+  "debuggable": false,
+  "bytes": 91071389,
+  "apk_sha256": "971e325587823133b2ce0437370098152d0518f18ab0768f74685a597690f316",
+  "certificate_sha256": "6530ae8d20d9324504418f2afa274fec2cd1dc289ce3bdf2c8176f3620e7deba",
+  "payload_unchanged_by_owner_signing": true,
+  "signature_v2_verified": true,
+  "native_zip_alignment_16kb": true,
+  "sealed_artifact_sha256": "8fdbacf2837ebf5da1ca3479afa111b84dad2102a4e24eea4226c5610088ad3a",
+  "tested_source_tree": "7f91b3a10de3480df1bf6cc4fde55808d69039ac",
+  "integration_artifact_sha256": "7fd50bd9e7a3791c61a654511695e15919b57148f35eb117fadcd84596072a3a",
+  "automated_cases": 203,
+  "lint": [
+    {
+      "file": "app/build/reports/lint-results-debug.xml",
+      "counts": {
+        "Warning": 44
+      }
+    },
+    {
+      "file": "core/tdlib/build/reports/lint-results-debug.xml",
+      "counts": {}
+    }
+  ],
+  "screenshots_count": 27,
+  "emulator_upgrade": "0.5.0-preview -> 0.6.0-preview; temporary CI signer; data retained",
+  "real_account_used": false,
+  "owner_phone_tested": false
+}
