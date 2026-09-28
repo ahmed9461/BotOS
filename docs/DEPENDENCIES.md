@@ -1,6 +1,6 @@
 # الإصدارات والتوافق
 
-آخر مراجعة: 2026-09-18. **مرصود رسميًا، ومختار، وناجح في CI أوصاف مختلفة.** أرقام المجموعة الأساسية في gradle/libs.versions.toml. اجتازت هذه المجموعة بناء النسخة الأولى في 35288442618. التغييرات واختبارات الجهاز الجديدة تعاد مراجعتها في الجولة 0003.
+آخر مراجعة: 2026-09-23. **مرصود رسميًا، ومختار، وناجح في CI أوصاف مختلفة.** أرقام المجموعة الأساسية في gradle/libs.versions.toml. اجتازت هذه المجموعة بناء النسخة الأولى في 35288442618. التغييرات واختبارات الجهاز الجديدة تعاد مراجعتها في الجولة 0003.
 
 | المكون | المختار | السبب أو الحالة |
 |---|---|---|
@@ -19,7 +19,9 @@
 | AndroidX Test JUnit | 1.3.0 | أضيف في الجولة 0003، مثبت في app/build.gradle.kts |
 | AndroidX Test Runner | 1.7.0 | أضيف في الجولة 0003 لاختبار النشاط والكيبورد الحقيقيين |
 | محاكي اختبار الواجهة | صورة API 35 / google_apis / x86_64 | جهاز اختبار، لا خفض لمستوى target أو compile |
-| TDLib | غير مثبت بعد | يلزم تثبيت commit ومطابقة JNI والمخطط في P2 |
+| TDLib وJSONJava |1.8.67 / d1085f9cebc5a62379991ae1652673954f229c1f| مصدر المخطط وJava وJNI نفسه؛ فحوص CI60 ناجحة |
+| Media3 ExoPlayer/UI |1.11.0| إضافةC؛ رسمية، وتنتظر بوابةالنشر والبناء والتشغيل |
+| Lottie Android |6.7.1| إضافةC للـTGS المحدود؛ تنتظرCI |
 
 الإصدارات الجديدة للاختبار اختيرت من إصدارات مستقرة موثقة، ولا تفرض ترقية عشوائية على اعتماديات المنتج. واجهة isImeVisible في Compose المثبت تحمل علامة ExperimentalLayoutApi؛ قبلت في دالتين محددتين فقط، وليست حزمة alpha أو تعطيلًا عامًا لفحوص الجودة.
 
@@ -49,8 +51,16 @@
 بصمة Wrapper JAR المنشور:
 `497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7`.
 
-يولّد CI ملفات Wrapper بالأداة الرسمية ويرفعها. إجراءات checkout وsetup-java وsetup-gradle وupload-artifact مثبتة على commit من ناشريها. لا أسرار مستخدم ولا صلاحية كتابة للمستودع في workflow. البيانات الوصفية للاعتمادات الثمانية الأساسية تفحص من Google Maven وMaven Central قبل البناء.
+يولّد CI ملفات Wrapper بالأداة الرسمية ويرفعها. إجراءات checkout وsetup-java وsetup-gradle وupload-artifact مثبتة على commit من ناشريها. لا أسرار مستخدم ولا صلاحية كتابة للمستودع في workflow. البيانات الوصفية للاعتمادات الأساسية مع Media3 وLottie تفحص من Google Maven وMaven Central قبل البناء.
 
 ## الترقية
 
 اقرأ ملاحظات الإصدار ومصفوفة التوافق ومواضع الاستخدام، ثم حدّث الخطة والقرار والمصادر واختبر. لا + أو latest أو master لاعتماد قابل للبناء. Room وHilt وWorkManager إضافات عند الحاجة لا طقوس تأسيس. تعاد مراجعة إصلاحات AGP وR8 والملفات الأصلية قبل الإصدار الحي.
+
+## 0007-C — إضافة مشغل وفك ملصقات
+
+23سبتمبر2026: media3-exoplayer وmedia3-ui1.11.0، وcom.airbnb.android:lottie6.7.1. لاHLS/DASH أوCoilNetwork أوWebView، والـImageDecoder منAndroid. التحققمنصفحاتالإصداراتالرسميةتم؛ بوابةprobe_dependencies/build علىCI يجبأنتثبتالنشروالتوافققبلالإكمال. بقيةالإصداراتوTDLibلمتتغير.
+
+- https://developer.android.com/jetpack/androidx/releases/media3
+- https://developer.android.com/media/media3/exoplayer/hello-world
+- https://github.com/airbnb/lottie-android/releases/tag/v6.7.1

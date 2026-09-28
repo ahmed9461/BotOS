@@ -1,4 +1,4 @@
 <resources>
-    <string name="account_about_body">BotOS تطبيق مستقل يستخدم Telegram. المعاينة منفصلة عن حسابك. تدعم النسخة المهيأة النصوص وأزرار البوتات الأساسية بعد ربط الحساب؛ بعض الوسائط والميزات المتقدمة غير متاحة بعد.</string>
+    <string name="account_about_body">BotOS تطبيق مستقل لبوتات Telegram وغير تابع له. بعد ربط حسابك يمكنك قراءة رسائل بوتاتك وإرسال النصوص والوسائط. قد تحتاج بعض ميزات Telegram المتقدمة إلى التطبيق الرسمي.</string>
     <string name="account_version">الإصدار %1$s</string>
 </resources>

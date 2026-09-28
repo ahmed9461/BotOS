@@ -25,7 +25,7 @@ for folder in ['values', 'values-en']:
     if folder == 'values': expected = names
     elif expected != names: raise SystemExit('Refinement translations do not match')
 print('Approved launcher unchanged; single-inset ownership and AR/EN resource parity passed.')
-for resource in ['account.xml', 'live_bots.xml']:
+for resource in ['account.xml', 'live_bots.xml', 'messenger.xml']:
     ar = {node.attrib['name'] for node in ET.parse(root / 'app/src/main/res/values' / resource).getroot()}
     en = {node.attrib['name'] for node in ET.parse(root / 'app/src/main/res/values-en' / resource).getroot()}
     if ar != en: raise SystemExit('Account or bot translations do not match')
@@ -33,3 +33,17 @@ account = (root / 'app/src/main/kotlin/com/ahmed9461/botos/AccountScreen.kt').re
 if 'by rememberSaveable' in account or 'SavedStateHandle' in account:
     raise SystemExit('Do not persist account input in saved UI state')
 print('Account resource parity and transient input guard passed.')
+
+# The owner removed demo mode. Synthetic gateways belong only to test source sets.
+for source in (root / 'app/src/main').rglob('*.kt'):
+    if 'PreviewGateway' in source.read_text() or 'preview-mode' in source.read_text():
+        raise SystemExit(f'Production demo route is forbidden: {source.relative_to(root)}')
+for source in (root / 'core/telegram/src/main').rglob('*.kt'):
+    if 'class PreviewGateway' in source.read_text():
+        raise SystemExit('Synthetic gateway must not ship in the app')
+workspace = (root / 'app/src/main/kotlin/com/ahmed9461/botos/WorkspaceScreen.kt').read_text()
+assert 'chat-list' in workspace and 'ModalBottomSheet' in workspace, 'Real chat list and switcher required'
+media = (root / 'app/src/main/kotlin/com/ahmed9461/botos/media/ReceivedMediaUi.kt').read_text()
+assert 'usePlatformDefaultWidth = false' in media and 'decorFitsSystemWindows = false' in media, 'Fullscreen media required'
+assert 'coerceIn(.65f' not in media and 'height(380.dp)' not in media, 'Do not restore forced media framing'
+print('Messenger translations, production-only routes and fullscreen media contracts passed.')

@@ -93,4 +93,39 @@ class RichAdapterRegressionTest {
         assertTrue(block.children.single() is Block.RichDetails)
         assertEquals("مصدر تجريبي", block.credit.plainText())
     }
+    @Test fun richVisualMediaStayCollapsedWhenTheirSpoilerFlagIsSet() {
+        for (kind in listOf("pageBlockPhoto", "pageBlockVideo", "pageBlockAnimation")) {
+            val hidden = TdJson.command(kind) { put("has_spoiler", true) }
+            val visible = TdJson.command(kind) { put("has_spoiler", false) }
+            val model = BotMessageAdapter.message(message(rich(buildJsonArray { add(hidden); add(visible) })), key, 1)!!
+            val masked = model.blocks.first() as Block.Details
+            assertTrue(masked.children.single() is Block.Media)
+            assertTrue(model.blocks.last() is Block.Media)
+        }
+    }
+
+    @Test fun finalTextEditReplacesMessageAndInvalidatesPriorRevisionOnlyInItsChat() {
+        val first = BotMessageReducer(key, 100)
+        val other = BotMessageReducer(ChatKey("another-account", "another-chat"), 200)
+        val original = wireMessage(id = 50, chatId = 100, text = "قبل", markup = wireKeyboard(true))
+        first.add(original)
+        other.add(wireMessage(id = 50, chatId = 200, text = "مستقل", markup = wireKeyboard(true)))
+        val ticket = ActionTicket(key, 50, first.timeline().messages.single().revision, "inline/0/0")
+        assertNotNull(first.resolve(ticket))
+        val newContent = TdJson.command("messageText") {
+            put("text", TdJson.command("formattedText") { put("text", "بعد") })
+        }
+        first.update(TdJson.command("updateMessageContent") {
+            put("chat_id", 100); put("message_id", 50); put("new_content", newContent)
+        })
+        assertEquals(1, first.timeline().messages.size)
+        assertEquals("بعد", (first.timeline().messages.single().blocks.first() as Block.Paragraph).text)
+        assertNull(first.resolve(ticket))
+        assertEquals("مستقل", (other.timeline().messages.single().blocks.first() as Block.Paragraph).text)
+        first.update(TdJson.command("updateMessageContent") {
+            put("chat_id", 200); put("message_id", 50); put("new_content", newContent)
+        })
+        assertEquals("بعد", (first.timeline().messages.single().blocks.first() as Block.Paragraph).text)
+    }
+
 }

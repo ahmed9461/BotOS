@@ -6,9 +6,6 @@
     <string name="subtitle">مكان واحد لكل ما تستخدمه.</string>
     <string name="add_bot">إضافة بوت</string>
     <string name="edit_bot">تعديل البوت</string>
-    <string name="preview">المعاينة</string>
-    <string name="preview_notice">معاينة • لا تتصل بحسابك</string>
-    <string name="no_connection">الاتصال بحسابك لم يُفعّل في هذه النسخة بعد. يمكنك تنظيم بوتاتك وتجربة الواجهة الآن.</string>
     <string name="waiting_connection">بانتظار ربط الحساب</string>
     <string name="open_telegram">فتح في Telegram</string>
     <string name="bookmark_notice">يُحفظ الاسم في مساحتك فقط. سيتم التحقق من البوت عند ربط الحساب.</string>
@@ -33,11 +30,8 @@
     <string name="reduce_motion">تقليل الحركة</string>
     <string name="reduce_motion_hint">انتقالات أبسط وأكثر هدوءًا</string>
     <string name="about">عن BotOS</string>
-    <string name="about_body">BotOS تطبيق مستقل لبوتات Telegram. النسخة الحالية للمعاينة والتنظيم المحلي؛ لا تسجّل الدخول إلى حسابك ولا ترسل رسائل إليه.</string>
     <string name="privacy_hint">إعداداتك وأسماء بوتاتك تبقى على جهازك.</string>
-    <string name="composer_hint">جرّب كتابة رسالة…</string>
-    <string name="send">إرسال في المعاينة</string>
-    <string name="preview_reply">هذه رسالة تجريبية داخل المعاينة فقط. جرّب الأزرار في البطاقة الأولى لتغيير محتواها.</string>
+    <string name="send">إرسال</string>
     <string name="unsupported">هذا المحتوى غير متاح للعرض هنا بعد.</string>
     <string name="content_limited">تم عرض جزء من المحتوى لتبقى المساحة خفيفة.</string>
     <string name="stale_action">تغيّرت هذه الرسالة. استخدم أزرارها الحالية.</string>
@@ -49,7 +43,6 @@
     <string name="open_error">تعذّر فتح الرابط على جهازك.</string>
     <string name="empty_bots">ابدأ ببوت واحد. واجمع البقية هنا.</string>
     <string name="loading">جارٍ فتح مساحتك…</string>
-    <string name="preview_version">نسخة المعاينة 0.1</string>
     <string name="expand">فتح التفاصيل</string>
     <string name="collapse">إغلاق التفاصيل</string>
 </resources>

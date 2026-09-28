@@ -14,11 +14,21 @@ class UiHarnessContractTest(unittest.TestCase):
             / "app/src/androidTest/kotlin/com/ahmed9461/botos/UiRegressionTest.kt"
         ).read_text()
 
+        cls.ime_test = (ROOT / "app/src/androidTest/kotlin/com/ahmed9461/botos/MessengerImeTest.kt").read_text()
+
     def test_menu_key_is_not_used_to_unlock_or_prepare_home(self):
         self.assertNotIn("shell input keyevent 82", self.script)
         self.assertNotIn("shell input keyevent KEYCODE_MENU", self.script)
         self.assertIn("shell input keyevent KEYCODE_WAKEUP", self.script)
         self.assertIn("wm dismiss-keyguard", self.script)
+
+    def test_gradle_keeps_original_android_home_after_owner_upgrade_probe(self):
+        self.assertIn('for name in ANDROID_SDK_HOME ANDROID_USER_HOME ANDROID_EMULATOR_HOME ANDROID_AVD_HOME',
+                      self.script)
+        self.assertIn('env "${gradle_unset_android_env[@]}" "${gradle_original_android_env[@]}" ./gradlew',
+                      self.script)
+        self.assertLess(self.script.index('python3 scripts/verify_inplace_update.py'),
+                        self.script.index('env "${gradle_unset_android_env[@]}"'))
 
     def test_disposable_emulator_only_observes_stable_foreground(self):
         guard = self.script.index("ro.kernel.qemu")
@@ -39,11 +49,16 @@ class UiHarnessContractTest(unittest.TestCase):
             "ui.waitUntil(10_000) { windowSnapshot().focused }", self.ui_test
         )
         self.assertIn(
-            "gapDp >= -2f && gapDp <= 12f", self.ui_test
+            "gapDp >= -2f && gapDp <= 12f", self.ime_test
         )
         self.assertIn(
-            "ui.waitUntil(15_000) { windowSnapshot().imeVisible }", self.ui_test
+            "ui.waitUntil(15_000) { window().ime }", self.ime_test
         )
+
+        self.assertIn("AppFrame(remember { SnackbarHostState() }", self.ime_test)
+        self.assertIn("LiveBotPanel(ConversationState", self.ime_test)
+        self.assertNotIn(".imePadding(", self.ime_test)
+        self.assertNotIn("PreviewGateway", self.ime_test)
 
 
 if __name__ == "__main__":

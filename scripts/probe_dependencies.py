@@ -18,6 +18,8 @@ ARTIFACTS = {
     'navigation3': (GOOGLE, 'androidx/navigation3/navigation3-ui'),
     'datastore': (GOOGLE, 'androidx/datastore/datastore-preferences'),
     'coroutines': (CENTRAL, 'org/jetbrains/kotlinx/kotlinx-coroutines-android'),
+    'media3': (GOOGLE, 'androidx/media3/media3-exoplayer'),
+    'lottie': (CENTRAL, 'com/airbnb/android/lottie'),
 }
 
 def describe_metadata(xml, selected):
@@ -47,4 +49,4 @@ if __name__ == '__main__':
     print(json.dumps(results, indent=2, ensure_ascii=False))
     # Missing selected versions are evidence, not an instruction to downgrade.
     # Unknown metadata is a failed probe, never evidence that a version does not exist.
-    raise SystemExit(1 if any(v['published'] is None for v in results.values()) else 0)
+    raise SystemExit(1 if any(v['published'] is not True for v in results.values()) else 0)

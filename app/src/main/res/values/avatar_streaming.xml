@@ -1,0 +1,13 @@
+<resources>
+    <string name="avatar_title">صورة البوت</string>
+    <string name="avatar_edit">تغيير صورة %1$s</string>
+    <string name="avatar_description">صورة %1$s</string>
+    <string name="avatar_choose">اختيار صورة من الهاتف</string>
+    <string name="avatar_automatic">استخدام صورة Telegram</string>
+    <string name="avatar_local_only">الصورة التي تختارها تظهر لك داخل BotOS فقط.</string>
+    <string name="avatar_saved">تم تحديث صورة البوت.</string>
+    <string name="avatar_error">تعذر تحديث الصورة. اختر صورة أخرى وحاول مجددًا.</string>
+    <string name="pending_writing">يكتب الآن…</string>
+    <string name="pending_stopped">توقف الرد.</string>
+    <string name="pending_stop">إيقاف الرد</string>
+</resources>

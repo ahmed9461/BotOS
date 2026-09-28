@@ -1,0 +1,9 @@
+<resources>
+    <string name="media_play">تشغيل</string>
+    <string name="media_view">عرض</string>
+    <string name="media_download">تنزيل</string>
+    <string name="media_retry">إعادة المحاولة</string>
+    <string name="media_unavailable">تعذر تحميل هذا المرفق أو عرضه.</string>
+    <string name="media_cannot_play">تعذر تشغيل هذا الملف على الجهاز.</string>
+    <string name="media_sticker">ملصق</string>
+</resources>

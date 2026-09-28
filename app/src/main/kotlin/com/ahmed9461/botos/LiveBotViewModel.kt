@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahmed9461.botos.model.ActionTicket
+import com.ahmed9461.botos.model.ChatKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -31,6 +32,7 @@ class LiveBotViewModel(application: Application) : AndroidViewModel(application)
             if (bots.send(value) && state.value.timeline?.chat == chat && text.value == value) text.value = ""
         }
     }
+    fun stopPending(chat: ChatKey, draftId: Long) { viewModelScope.launch { bots.stopPending(draftId, chat) } }
     fun activate(ticket: ActionTicket) { viewModelScope.launch { bots.activate(ticket) } }
     fun dismiss() { bots.dismissNotice() }
     fun confirmedUrl() = bots.takeConfirmedUrl()
