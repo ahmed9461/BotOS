@@ -217,5 +217,17 @@ class MessengerUiTest {
         ui.runOnIdle { messages = messages + message(33) }
         ui.onNodeWithTag("message-bubble-33").assertIsDisplayed()
         ui.onNodeWithTag("chat-jump-latest").assertDoesNotExist()
+        // Multiple layout passes must not turn following into a manual history-reading state.
+        for (id in 34..37) {
+            ui.runOnIdle { messages = messages + message(id) }
+            ui.onNodeWithTag("message-bubble-$id").assertIsDisplayed()
+            ui.onNodeWithTag("chat-jump-latest").assertDoesNotExist()
+        }
+        ui.onNodeWithTag("message-list").performScrollToIndex(0)
+        ui.runOnIdle { messages = messages + message(38) }
+        ui.onNodeWithTag("message-bubble-1").assertIsDisplayed()
+        ui.onNodeWithTag("chat-jump-latest").assertIsDisplayed().performClick()
+        ui.onNodeWithTag("message-bubble-38").assertIsDisplayed()
+        ui.onNodeWithTag("chat-jump-latest").assertDoesNotExist()
     }
 }

@@ -57,29 +57,41 @@ internal fun MessageTimelineView(timeline: MessageTimeline, onAction: (ActionTic
     val listState = rememberLazyListState()
     val duration = LocalMotionMillis.current
     val scope = rememberCoroutineScope()
-    val followTail by remember { derivedStateOf { !listState.canScrollForward } }
     val currentPending = pending?.takeIf { it.content.chat == timeline.chat }
-    var followPending by remember(timeline.chat) { mutableStateOf(true) }
+    // Reader intent survives a layout pass that makes a newly appended message scrollable.
+    var followTail by remember(timeline.chat) { mutableStateOf(true) }
     var programmaticScroll by remember(timeline.chat) { mutableStateOf(false) }
     LaunchedEffect(timeline.chat, listState) {
-        snapshotFlow { listState.isScrollInProgress to listState.canScrollForward }.collect { (scrolling, hasMore) ->
-            if (!programmaticScroll && scrolling) followPending = !hasMore
-            if (!programmaticScroll && !hasMore) followPending = true
+        var previousIndex = listState.firstVisibleItemIndex
+        var previousOffset = listState.firstVisibleItemScrollOffset
+        snapshotFlow {
+            Triple(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset, listState.canScrollForward)
+        }.collect { (index, offset, hasMore) ->
+            // Also observe instantaneous/accessibility scrolling, not only animated drag frames.
+            val moved = index != previousIndex || offset != previousOffset
+            if (!programmaticScroll && moved) followTail = !hasMore
+            if (!programmaticScroll && !hasMore) followTail = true
+            previousIndex = index
+            previousOffset = offset
         }
     }
     LaunchedEffect(timeline.chat, timeline.messages.lastOrNull()?.id) {
         if (currentPending == null && timeline.messages.isNotEmpty() && (followTail || timeline.messages.lastOrNull()?.outgoing == true)) {
-            if (duration == 0) listState.scrollToItem(timeline.messages.lastIndex)
-            else listState.animateScrollToItem(timeline.messages.lastIndex)
+            programmaticScroll = true
+            followTail = true
+            try {
+                if (duration == 0) listState.scrollToItem(timeline.messages.lastIndex)
+                else listState.animateScrollToItem(timeline.messages.lastIndex)
+            } finally { programmaticScroll = false }
         }
     }
     // Follow a growing reply only while the reader remains at the tail. No whole-report animation.
     LaunchedEffect(timeline.chat, currentPending?.draftId, currentPending?.content?.revision) {
-        if (currentPending == null || !followPending || listState.isScrollInProgress) return@LaunchedEffect
+        if (currentPending == null || !followTail || listState.isScrollInProgress) return@LaunchedEffect
         val index = timeline.messages.size
         snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > index }
         withFrameNanos { }
-        if (!followPending) return@LaunchedEffect
+        if (!followTail) return@LaunchedEffect
         programmaticScroll = true
         try {
             if (listState.layoutInfo.visibleItemsInfo.none { it.index == index }) listState.scrollToItem(index)
@@ -123,8 +135,11 @@ internal fun MessageTimelineView(timeline: MessageTimeline, onAction: (ActionTic
             onClick = { scope.launch {
                 val index = if (currentPending != null) timeline.messages.size else timeline.messages.lastIndex
                 if (index >= 0) {
-                    if (duration == 0) listState.scrollToItem(index) else listState.animateScrollToItem(index)
-                    followPending = true
+                    programmaticScroll = true
+                    followTail = true
+                    try {
+                        if (duration == 0) listState.scrollToItem(index) else listState.animateScrollToItem(index)
+                    } finally { programmaticScroll = false }
                 }
             } }, modifier = Modifier.align(Alignment.BottomEnd).padding(10.dp).size(48.dp).testTag("chat-jump-latest"),
             containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary,
