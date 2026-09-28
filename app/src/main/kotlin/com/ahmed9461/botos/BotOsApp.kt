@@ -3,6 +3,9 @@ package com.ahmed9461.botos
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -29,7 +32,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavEntry
@@ -50,7 +52,6 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel(), accountVm: AccountViewModel =
     )) { mutableStateListOf("workspace") }
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
-    val activity = LocalActivity.current
     val focus = LocalFocusManager.current
     val resources by rememberUpdatedState(LocalResources.current)
     val imeVisible = WindowInsets.isImeVisible
@@ -86,15 +87,6 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel(), accountVm: AccountViewModel =
     val preferences = shellState.workspace.preferences
     BotOsTheme(preferences.theme, preferences.reduceMotion) {
         val motion = LocalMotionMillis.current
-        val light = MaterialTheme.colorScheme.background.luminance() > 0.5f
-        SideEffect {
-            activity?.let {
-                WindowCompat.getInsetsController(it.window, it.window.decorView).apply {
-                    isAppearanceLightStatusBars = light
-                    isAppearanceLightNavigationBars = light
-                }
-            }
-        }
         AvatarHost(onNotice = vm::notice) {
         AppFrame(snackbar,
             bottomBar = {
@@ -130,6 +122,14 @@ fun BotOsApp(vm: WorkspaceViewModel = viewModel(), accountVm: AccountViewModel =
 @Composable
 internal fun AppFrame(snackbar: SnackbarHostState, bottomBar: @Composable () -> Unit,
     content: @Composable (PaddingValues) -> Unit) {
+    val activity = LocalActivity.current as? ComponentActivity
+    val light = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    DisposableEffect(activity, light) {
+        // The chosen app theme, not the device theme, owns both bar icons and window setup.
+        val bars = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { !light }
+        activity?.enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+        onDispose { }
+    }
     val safeInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.ime)
     Scaffold(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).windowInsetsPadding(safeInsets),
         contentWindowInsets = WindowInsets(0, 0, 0, 0), containerColor = MaterialTheme.colorScheme.background,
